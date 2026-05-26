@@ -3,15 +3,15 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import SplashScreen from '../screens/SplashScreen';
-import SignInScreen from '../screens/log-in-screens/SignInScreen';
+import SignInScreen from '../screens/auth-screens/SignInScreen';
 import BottomTabs from './BottomTabs';
-import ForgetPasswordScreen from '../screens/log-in-screens/ForgetPasswordScreen';
-import VerifyCodeScreen from '../screens/log-in-screens/VerifyCodeScreen';
-import PasswordResetScreen from '../screens/log-in-screens/PasswordResetScreen';
-import UpdatePasswordScreen from '../screens/log-in-screens/UpdatePasswordScreen';
-import SuccessfulMessageScreen from '../screens/log-in-screens/SuccessfulMessageScreen';
-import SignUpScreen from '../screens/log-in-screens/SignUpScreen';
-import AccountCreateMessageScreen from '../screens/log-in-screens/AccountCreateMessageScreen';
+import ForgetPasswordScreen from '../screens/auth-screens/ForgetPasswordScreen';
+import VerifyCodeScreen from '../screens/auth-screens/VerifyCodeScreen';
+import PasswordResetScreen from '../screens/auth-screens/PasswordResetScreen';
+import UpdatePasswordScreen from '../screens/auth-screens/UpdatePasswordScreen';
+import SuccessfulMessageScreen from '../screens/auth-screens/SuccessfulMessageScreen';
+import SignUpScreen from '../screens/auth-screens/SignUpScreen';
+import AccountCreateMessageScreen from '../screens/auth-screens/AccountCreateMessageScreen';
 
 const Stack = createNativeStackNavigator();
 
