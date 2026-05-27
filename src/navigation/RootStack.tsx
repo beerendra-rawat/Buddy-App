@@ -31,7 +31,7 @@ export default function RootStack() {
                 <Stack.Screen name="ForgetPassword" component={ForgetPasswordScreen} />
                 <Stack.Screen name="VerifyCode" component={VerifyCodeScreen} />
                 <Stack.Screen name="PasswordReset" component={PasswordResetScreen} />
-                <Stack.Screen name="updatepassword" component={UpdatePasswordScreen} />
+                <Stack.Screen name="UpdatePassword" component={UpdatePasswordScreen} />
                 <Stack.Screen name="Success" component={SuccessfulMessageScreen} />
                 <Stack.Screen name="SignUp" component={SignUpScreen} />
                 <Stack.Screen name="Message" component={AccountCreateMessageScreen} />
