@@ -1,14 +1,31 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, TouchableOpacity, View, Platform } from 'react-native';
 
-import ChatScreen from '../screens/ChatScreen';
-import PeopleScreen from '../screens/PeopleScreen';
-import FriendScreen from '../screens/FriendScreen';
-import CallsScreen from '../screens/CallsScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import ChatScreen from '../screens/bottom-tab-screens/ChatScreen';
+import PeopleScreen from '../screens/bottom-tab-screens/PeopleScreen';
+import FriendScreen from '../screens/bottom-tab-screens/FriendScreen';
+import CallsScreen from '../screens/bottom-tab-screens/CallsScreen';
+import ProfileScreen from '../screens/bottom-tab-screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
+
+function CustomTabBarButton({ children, onPress, accessibilityState }: any) {
+    const isSelected = accessibilityState?.selected ?? false;
+
+    return (
+        <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={onPress}
+            style={styles.tabButtonContainer}
+        >
+            <View style={[styles.tabButton, isSelected && styles.tabButtonActive]}>
+                {children}
+            </View>
+        </TouchableOpacity>
+    );
+}
 
 export default function BottomTabs() {
     const insets = useSafeAreaInsets();
@@ -18,49 +35,40 @@ export default function BottomTabs() {
             screenOptions={({ route }) => ({
                 headerShown: false,
 
-                tabBarActiveTintColor: '#6366F1',
-                tabBarInactiveTintColor: '#9CA3AF',
-
                 tabBarHideOnKeyboard: true,
-
+                tabBarShowLabel: true,
+                tabBarActiveTintColor: '#5B60FF',
+                tabBarInactiveTintColor: '#8F97B6',
                 tabBarLabelStyle: {
                     fontSize: 11,
-                    fontWeight: '600',
-                    marginBottom: 4,
+                    fontWeight: '700',
+                    marginTop: 2,
                 },
-
+                tabBarItemStyle: {
+                    marginHorizontal: 4,
+                    borderRadius: 18,
+                },
                 tabBarStyle: {
                     position: 'absolute',
-
-                    left: 14,
-                    right: 14,
-
-                    bottom: insets.bottom > 0
-                        ? insets.bottom
-                        : 10,
-
-                    height: 68,
-
-                    paddingTop: 8,
-                    paddingBottom: 8,
-
-                    borderRadius: 18,
-
+                    left: 16,
+                    right: 16,
+                    bottom: insets.bottom > 0 ? insets.bottom + 6 : 14,
+                    height: 72,
+                    paddingTop: 10,
+                    paddingBottom: Platform.OS === 'android' ? 12 : 14,
+                    borderRadius: 24,
                     backgroundColor: '#FFFFFF',
-
                     borderTopWidth: 0,
-
-                    elevation: 8,
-
+                    elevation: 12,
                     shadowColor: '#000',
                     shadowOffset: {
                         width: 0,
-                        height: 5,
+                        height: 10,
                     },
                     shadowOpacity: 0.08,
-                    shadowRadius: 8,
+                    shadowRadius: 16,
                 },
-
+                tabBarButton: (props) => <CustomTabBarButton {...props} />,
                 tabBarIcon: ({ color, focused }) => {
                     let iconName: any;
 
@@ -87,11 +95,13 @@ export default function BottomTabs() {
                     }
 
                     return (
-                        <Ionicons
-                            name={iconName}
-                            size={22}
-                            color={color}
-                        />
+                        <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
+                            <Ionicons
+                                name={iconName}
+                                size={22}
+                                color={focused ? '#4F46E5' : color}
+                            />
+                        </View>
                     );
                 },
             })}
@@ -104,3 +114,33 @@ export default function BottomTabs() {
         </Tab.Navigator>
     );
 }
+
+const styles = StyleSheet.create({
+    tabButtonContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tabButton: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        paddingVertical: 4,
+        borderRadius: 20,
+    },
+    tabButtonActive: {
+        backgroundColor: '#EEF2FF',
+    },
+    iconWrapper: {
+        width: 42,
+        height: 42,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 14,
+        marginBottom: 4,
+    },
+    iconWrapperActive: {
+        backgroundColor: '#EDE9FE',
+    },
+});
