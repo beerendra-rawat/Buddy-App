@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 import {
     View,
@@ -8,9 +8,16 @@ import {
     StatusBar,
     KeyboardAvoidingView,
     Platform,
+    Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import {
+    signInWithEmailAndPassword,
+} from 'firebase/auth';
+
+import { auth } from '../../services/firebase';
 
 import CustomInput from '../../components/auth/CustomInput';
 import PasswordInput from '../../components/auth/PasswordInput';
@@ -21,6 +28,50 @@ import AuthTabs from '../../components/auth/AuthTabs';
 export default function SignInScreen({
     navigation,
 }: any) {
+
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleLogin = async () => {
+
+        if (!email || !password) {
+            Alert.alert(
+                'Error',
+                'Please enter email and password'
+            );
+            return;
+        }
+
+        try {
+
+            setLoading(true);
+
+            await signInWithEmailAndPassword(
+                auth,
+                email,
+                password
+            );
+
+            setLoading(false);
+
+            Alert.alert(
+                'Success',
+                'Login successful'
+            );
+
+            navigation.replace('MainTabs');
+
+        } catch (error: any) {
+
+            setLoading(false);
+
+            Alert.alert(
+                'Login Error',
+                error.message
+            );
+        }
+    };
 
     return (
         <SafeAreaView
@@ -56,14 +107,20 @@ export default function SignInScreen({
                 {/* Form */}
                 <View style={styles.formContainer}>
 
+                    {/* Email */}
                     <CustomInput
                         label="Your Email"
                         placeholder="contact@dscodetech.com"
                         keyboardType="email-address"
+                        value={email}
+                        onChangeText={setEmail}
                     />
 
+                    {/* Password */}
                     <PasswordInput
                         label="Password"
+                        value={password}
+                        onChangeText={setPassword}
                     />
 
                     {/* Forgot Password */}
@@ -80,10 +137,12 @@ export default function SignInScreen({
 
                     {/* Button */}
                     <PrimaryButton
-                        title="Continue"
-                        onPress={() =>
-                            navigation.navigate('MainTabs')
+                        title={
+                            loading
+                                ? 'Logging In...'
+                                : 'Continue'
                         }
+                        onPress={handleLogin}
                     />
 
                     {/* Divider */}
@@ -184,7 +243,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-
         marginTop: 28,
     },
 

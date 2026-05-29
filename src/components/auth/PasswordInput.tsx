@@ -11,10 +11,14 @@ import {
 
 type Props = {
     label: string;
+    value: string;
+    onChangeText: (text: string) => void;
 };
 
 export default function PasswordInput({
     label,
+    value,
+    onChangeText,
 }: Props) {
 
     const [secure, setSecure] = useState(true);
@@ -29,6 +33,8 @@ export default function PasswordInput({
             <View style={styles.wrapper}>
 
                 <TextInput
+                    value={value}
+                    onChangeText={onChangeText}
                     secureTextEntry={secure}
                     placeholder="••••••••"
                     placeholderTextColor="#A0A4AB"

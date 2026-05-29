@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+
 import {
     View,
     Text,
@@ -6,7 +7,9 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
+    TextInput,
 } from 'react-native';
+
 import {
     Ionicons,
     Feather,
@@ -14,276 +17,462 @@ import {
 } from '@expo/vector-icons';
 
 export default function ProfileScreen() {
+
+    const [isEdit, setIsEdit] =
+        useState(false);
+
+    const [name, setName] =
+        useState('Beerendra');
+
+    const [bio, setBio] = useState(
+        'React Native Developer 🚀'
+    );
+
+    const [birthday, setBirthday] =
+        useState('10 April 2002');
+
     return (
         <ScrollView
             style={styles.container}
             showsVerticalScrollIndicator={false}
         >
+
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.iconBtn}>
+
+                <TouchableOpacity
+                    style={styles.headerBtn}
+                >
                     <Ionicons
                         name="chevron-back"
                         size={24}
-                        color="#111"
+                        color="#111827"
                     />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>Profile</Text>
+                <Text style={styles.headerTitle}>
+                    Profile
+                </Text>
 
-                <TouchableOpacity style={styles.iconBtn}>
+                <TouchableOpacity
+                    style={styles.headerBtn}
+                    onPress={() =>
+                        setIsEdit(!isEdit)
+                    }
+                >
                     <Feather
-                        name="more-horizontal"
-                        size={22}
-                        color="#111"
+                        name={
+                            isEdit
+                                ? 'check'
+                                : 'edit-2'
+                        }
+                        size={20}
+                        color="#4F46E5"
                     />
                 </TouchableOpacity>
+
             </View>
 
             {/* Profile Card */}
-            <View style={styles.profileCard}>
-                <Image
-                    source={{
-                        uri: 'https://randomuser.me/api/portraits/men/32.jpg',
-                    }}
-                    style={styles.profileImage}
-                />
+            <View style={styles.card}>
 
-                <Text style={styles.name}>
-                    Joshua Lawrence
-                </Text>
+                {/* Profile Image */}
+                <View style={styles.imageContainer}>
 
-                <Text style={styles.username}>
-                    @joshua_lawrence
-                </Text>
+                    <Image
+                        source={{
+                            uri:
+                                'https://randomuser.me/api/portraits/men/32.jpg',
+                        }}
+                        style={styles.image}
+                    />
 
-                <Text style={styles.bio}>
-                    UI/UX Designer • Love music, coffee and
-                    chatting with friends.
-                </Text>
+                    <TouchableOpacity
+                        style={styles.cameraBtn}
+                    >
+                        <Ionicons
+                            name="camera"
+                            size={18}
+                            color="#fff"
+                        />
+                    </TouchableOpacity>
+
+                </View>
+
+                {/* Name */}
+                {
+                    isEdit ? (
+                        <TextInput
+                            value={name}
+                            onChangeText={setName}
+                            style={styles.input}
+                            placeholder="Name"
+                        />
+                    ) : (
+                        <Text style={styles.name}>
+                            {name}
+                        </Text>
+                    )
+                }
+
+                {/* Online Status */}
+                <View style={styles.onlineRow}>
+
+                    <View
+                        style={styles.onlineDot}
+                    />
+
+                    <Text
+                        style={styles.onlineText}
+                    >
+                        Online
+                    </Text>
+
+                </View>
+
+                {/* Bio */}
+                {
+                    isEdit ? (
+                        <TextInput
+                            value={bio}
+                            onChangeText={setBio}
+                            multiline
+                            style={[
+                                styles.input,
+                                {
+                                    height: 80,
+                                },
+                            ]}
+                            placeholder="Bio"
+                        />
+                    ) : (
+                        <Text style={styles.bio}>
+                            {bio}
+                        </Text>
+                    )
+                }
+
+                {/* Birthday */}
+                <View style={styles.birthdayBox}>
+
+                    <Ionicons
+                        name="gift-outline"
+                        size={22}
+                        color="#4F46E5"
+                    />
+
+                    {
+                        isEdit ? (
+                            <TextInput
+                                value={birthday}
+                                onChangeText={
+                                    setBirthday
+                                }
+                                style={
+                                    styles.birthdayInput
+                                }
+                                placeholder="Birthday"
+                            />
+                        ) : (
+                            <Text
+                                style={
+                                    styles.birthdayText
+                                }
+                            >
+                                Birthday : {birthday}
+                            </Text>
+                        )
+                    }
+
+                </View>
 
                 {/* Stats */}
-                <View style={styles.statsContainer}>
-                    <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>
+                <View style={styles.statsRow}>
+
+                    <View style={styles.statItem}>
+                        <Text
+                            style={styles.statNumber}
+                        >
                             245
                         </Text>
-                        <Text style={styles.statLabel}>
+
+                        <Text
+                            style={styles.statLabel}
+                        >
                             Friends
                         </Text>
                     </View>
 
-                    <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>
-                            1.2K
+                    <View style={styles.statItem}>
+                        <Text
+                            style={styles.statNumber}
+                        >
+                            18
                         </Text>
-                        <Text style={styles.statLabel}>
-                            Followers
+
+                        <Text
+                            style={styles.statLabel}
+                        >
+                            Groups
                         </Text>
                     </View>
 
-                    <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>
-                            348
+                    <View style={styles.statItem}>
+                        <Text
+                            style={styles.statNumber}
+                        >
+                            320
                         </Text>
-                        <Text style={styles.statLabel}>
-                            Following
+
+                        <Text
+                            style={styles.statLabel}
+                        >
+                            Chats
                         </Text>
                     </View>
+
                 </View>
 
                 {/* Buttons */}
                 <View style={styles.buttonRow}>
+
                     <TouchableOpacity
                         style={styles.messageBtn}
                     >
-                        <Text style={styles.messageText}>
+                        <Ionicons
+                            name="chatbubble-outline"
+                            size={20}
+                            color="#fff"
+                        />
+
+                        <Text style={styles.btnText}>
                             Message
                         </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={styles.callBtn}
+                        style={styles.actionBtn}
                     >
                         <Ionicons
                             name="call-outline"
                             size={22}
-                            color="#6C63FF"
+                            color="#4F46E5"
                         />
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.actionBtn}
+                    >
+                        <Ionicons
+                            name="videocam-outline"
+                            size={22}
+                            color="#4F46E5"
+                        />
+                    </TouchableOpacity>
+
                 </View>
+
+                {/* Save Button */}
+                {
+                    isEdit && (
+                        <TouchableOpacity
+                            style={styles.saveBtn}
+                        >
+                            <Text
+                                style={styles.saveText}
+                            >
+                                Save Profile
+                            </Text>
+                        </TouchableOpacity>
+                    )
+                }
+
             </View>
 
-            {/* Settings Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                    Account
+            {/* Logout */}
+            <TouchableOpacity
+                style={styles.logoutBtn}
+            >
+
+                <MaterialIcons
+                    name="logout"
+                    size={22}
+                    color="#EF4444"
+                />
+
+                <Text style={styles.logoutText}>
+                    Logout
                 </Text>
 
-                <MenuItem
-                    icon="person-outline"
-                    title="Edit Profile"
-                />
+            </TouchableOpacity>
 
-                <MenuItem
-                    icon="notifications-outline"
-                    title="Notifications"
-                />
-
-                <MenuItem
-                    icon="lock-closed-outline"
-                    title="Privacy"
-                />
-
-                <MenuItem
-                    icon="moon-outline"
-                    title="Dark Mode"
-                />
-            </View>
-
-            {/* More Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                    More
-                </Text>
-
-                <MenuItem
-                    icon="help-circle-outline"
-                    title="Help Center"
-                />
-
-                <MenuItem
-                    icon="settings-outline"
-                    title="Settings"
-                />
-
-                <MenuItem
-                    icon="log-out-outline"
-                    title="Logout"
-                    danger
-                />
-            </View>
         </ScrollView>
     );
 }
 
-type MenuProps = {
-    icon: any;
-    title: string;
-    danger?: boolean;
-};
-
-function MenuItem({
-    icon,
-    title,
-    danger,
-}: MenuProps) {
-    return (
-        <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuLeft}>
-                <View style={styles.menuIcon}>
-                    <Ionicons
-                        name={icon}
-                        size={20}
-                        color={
-                            danger ? '#FF4D4F' : '#6B7280'
-                        }
-                    />
-                </View>
-
-                <Text
-                    style={[
-                        styles.menuText,
-                        danger && { color: '#FF4D4F' },
-                    ]}
-                >
-                    {title}
-                </Text>
-            </View>
-
-            <MaterialIcons
-                name="keyboard-arrow-right"
-                size={24}
-                color="#9CA3AF"
-            />
-        </TouchableOpacity>
-    );
-}
-
 const styles = StyleSheet.create({
+
     container: {
         flex: 1,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#F5F7FB',
     },
 
+    /* Header */
     header: {
+        paddingTop: 65,
+        paddingHorizontal: 20,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingTop: 60,
-        paddingBottom: 20,
     },
 
-    iconBtn: {
+    headerBtn: {
         width: 42,
         height: 42,
-        borderRadius: 21,
-        backgroundColor: '#FFFFFF',
+        borderRadius: 14,
+        backgroundColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
+
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 3,
+    },
+
+    headerTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#111827',
+    },
+
+    /* Card */
+    card: {
+        backgroundColor: '#fff',
+        marginHorizontal: 20,
+        marginTop: 24,
+        borderRadius: 30,
+        padding: 22,
+        alignItems: 'center',
+
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 4,
+    },
+
+    imageContainer: {
+        position: 'relative',
+    },
+
+    image: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+    },
+
+    cameraBtn: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#4F46E5',
         justifyContent: 'center',
         alignItems: 'center',
     },
 
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#111827',
-    },
-
-    profileCard: {
-        backgroundColor: '#FFFFFF',
-        marginHorizontal: 20,
-        borderRadius: 30,
-        alignItems: 'center',
-        padding: 24,
-    },
-
-    profileImage: {
-        width: 110,
-        height: 110,
-        borderRadius: 55,
-    },
-
     name: {
-        fontSize: 24,
+        fontSize: 26,
         fontWeight: '700',
         color: '#111827',
-        marginTop: 16,
+        marginTop: 18,
     },
 
-    username: {
-        fontSize: 15,
-        color: '#6B7280',
-        marginTop: 4,
+    onlineRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+    },
+
+    onlineDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#22C55E',
+        marginRight: 6,
+    },
+
+    onlineText: {
+        color: '#22C55E',
+        fontSize: 14,
+        fontWeight: '500',
     },
 
     bio: {
-        textAlign: 'center',
+        marginTop: 14,
         fontSize: 15,
-        lineHeight: 24,
         color: '#6B7280',
-        marginTop: 16,
+        textAlign: 'center',
+        lineHeight: 24,
         paddingHorizontal: 10,
     },
 
-    statsContainer: {
+    input: {
+        width: '100%',
+        backgroundColor: '#F3F4F6',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        fontSize: 16,
+        color: '#111827',
+        marginTop: 16,
+    },
+
+    /* Birthday */
+    birthdayBox: {
+        width: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#EEF2FF',
+        borderRadius: 18,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        marginTop: 22,
+    },
+
+    birthdayText: {
+        marginLeft: 10,
+        color: '#111827',
+        fontSize: 15,
+        fontWeight: '500',
+    },
+
+    birthdayInput: {
+        flex: 1,
+        marginLeft: 10,
+        fontSize: 15,
+        color: '#111827',
+    },
+
+    /* Stats */
+    statsRow: {
         flexDirection: 'row',
         width: '100%',
         justifyContent: 'space-between',
         marginTop: 28,
     },
 
-    statBox: {
+    statItem: {
         flex: 1,
         alignItems: 'center',
     },
@@ -295,84 +484,89 @@ const styles = StyleSheet.create({
     },
 
     statLabel: {
-        fontSize: 14,
-        color: '#9CA3AF',
         marginTop: 4,
+        color: '#6B7280',
+        fontSize: 14,
     },
 
+    /* Buttons */
     buttonRow: {
         flexDirection: 'row',
-        marginTop: 28,
+        width: '100%',
+        marginTop: 30,
     },
 
     messageBtn: {
         flex: 1,
-        height: 54,
-        backgroundColor: '#6C63FF',
+        height: 56,
         borderRadius: 18,
+        backgroundColor: '#4F46E5',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        flexDirection: 'row',
     },
 
-    messageText: {
-        color: '#FFFFFF',
+    btnText: {
+        color: '#fff',
         fontSize: 16,
         fontWeight: '600',
+        marginLeft: 8,
     },
 
-    callBtn: {
-        width: 54,
-        height: 54,
+    actionBtn: {
+        width: 56,
+        height: 56,
         borderRadius: 18,
         backgroundColor: '#EEF2FF',
         justifyContent: 'center',
         alignItems: 'center',
+        marginLeft: 12,
     },
 
-    section: {
-        marginTop: 24,
-        marginHorizontal: 20,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 28,
-        paddingVertical: 10,
-        marginBottom: 20,
-    },
-
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111827',
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-    },
-
-    menuItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-    },
-
-    menuLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-
-    menuIcon: {
-        width: 42,
-        height: 42,
-        borderRadius: 14,
-        backgroundColor: '#F3F4F6',
+    /* Save Button */
+    saveBtn: {
+        width: '100%',
+        height: 54,
+        borderRadius: 18,
+        backgroundColor: '#111827',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 14,
+        marginTop: 22,
     },
 
-    menuText: {
+    saveText: {
+        color: '#fff',
         fontSize: 16,
-        color: '#111827',
-        fontWeight: '500',
+        fontWeight: '600',
     },
+
+    /* Logout */
+    logoutBtn: {
+        backgroundColor: '#fff',
+        marginHorizontal: 20,
+        marginTop: 20,
+        marginBottom: 40,
+        borderRadius: 24,
+        paddingVertical: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        flexDirection: 'row',
+
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 4,
+    },
+
+    logoutText: {
+        color: '#EF4444',
+        fontSize: 16,
+        fontWeight: '600',
+        marginLeft: 8,
+    },
+
 });

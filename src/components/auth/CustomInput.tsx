@@ -10,12 +10,16 @@ import {
 type Props = {
     label: string;
     placeholder: string;
+    value: string;
+    onChangeText: (text: string) => void;
     keyboardType?: any;
 };
 
 export default function CustomInput({
     label,
     placeholder,
+    value,
+    onChangeText,
     keyboardType,
 }: Props) {
 
@@ -27,6 +31,8 @@ export default function CustomInput({
             </Text>
 
             <TextInput
+                value={value}
+                onChangeText={onChangeText}
                 placeholder={placeholder}
                 placeholderTextColor="#A0A4AB"
                 keyboardType={keyboardType}

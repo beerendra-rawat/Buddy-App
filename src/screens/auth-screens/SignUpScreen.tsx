@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 
 import {
     View,
@@ -9,9 +9,21 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import {
+    createUserWithEmailAndPassword,
+} from 'firebase/auth';
+
+import {
+    doc,
+    setDoc,
+} from 'firebase/firestore';
+
+import { auth, db } from '../../services/firebase';
 
 import BackButton from '../../components/auth/BackButton';
 import AuthHeader from '../../components/auth/AuthHeader';
@@ -19,9 +31,66 @@ import CustomInput from '../../components/auth/CustomInput';
 import PasswordInput from '../../components/auth/PasswordInput';
 import PrimaryButton from '../../components/auth/PrimaryButton';
 
-export default function SignUpScreen({
-    navigation,
-}: any) {
+export default function SignUpScreen({ navigation }: any) {
+
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [phone, setPhone] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSignUp = async () => {
+
+        if (!name || !email || !password) {
+            Alert.alert('Error', 'Please fill all fields');
+            return;
+        }
+
+        try {
+
+            setLoading(true);
+
+            // Create account
+            const userCredential =
+                await createUserWithEmailAndPassword(
+                    auth,
+                    email,
+                    password
+                );
+
+            const user = userCredential.user;
+
+            // Save user data in Firestore
+            await setDoc(
+                doc(db, 'users', user.uid),
+                {
+                    name,
+                    email,
+                    phone,
+                    online: true,
+                    createdAt: Date.now(),
+                }
+            );
+
+            setLoading(false);
+
+            Alert.alert(
+                'Success',
+                'Account created successfully'
+            );
+
+            navigation.navigate('Message');
+
+        } catch (error: any) {
+
+            setLoading(false);
+
+            Alert.alert(
+                'Signup Error',
+                error.message
+            );
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -60,6 +129,8 @@ export default function SignUpScreen({
                     <CustomInput
                         label="Full Name"
                         placeholder="Enter your full name"
+                        value={name}
+                        onChangeText={setName}
                     />
 
                     {/* Email */}
@@ -67,11 +138,15 @@ export default function SignUpScreen({
                         label="Email Address"
                         placeholder="Enter your email"
                         keyboardType="email-address"
+                        value={email}
+                        onChangeText={setEmail}
                     />
 
                     {/* Password */}
                     <PasswordInput
                         label="Create Password"
+                        value={password}
+                        onChangeText={setPassword}
                     />
 
                     {/* Phone */}
@@ -79,14 +154,18 @@ export default function SignUpScreen({
                         label="Phone Number"
                         placeholder="+91 9876543210"
                         keyboardType="phone-pad"
+                        value={phone}
+                        onChangeText={setPhone}
                     />
 
                     {/* Button */}
                     <PrimaryButton
-                        title="Create Account"
-                        onPress={() =>
-                            navigation.navigate('Message')
+                        title={
+                            loading
+                                ? 'Creating Account...'
+                                : 'Create Account'
                         }
+                        onPress={handleSignUp}
                     />
 
                     {/* Bottom */}
@@ -132,7 +211,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-
         marginTop: 30,
     },
 
