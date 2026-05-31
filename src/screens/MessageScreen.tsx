@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+import React, {
+    useEffect,
+    useRef,
+    useState,
+} from 'react';
+
 import {
     View,
     Text,
@@ -7,277 +12,481 @@ import {
     FlatList,
     TextInput,
     Image,
+    KeyboardAvoidingView,
+    Platform,
+    Alert,
 } from 'react-native';
+
 import {
     Ionicons,
     Feather,
     MaterialIcons,
-    AntDesign,
 } from '@expo/vector-icons';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type MessageType = {
+import {
+    useNavigation,
+    useRoute,
+} from '@react-navigation/native';
+
+import {
+    collection,
+    addDoc,
+    serverTimestamp,
+    query,
+    orderBy,
+    onSnapshot,
+    doc,
+    setDoc,
+} from 'firebase/firestore';
+
+import {
+    auth,
+    db,
+} from '../services/firebase';
+
+type MessageItem = {
     id: string;
-    text?: string;
-    time: string;
-    sender: 'me' | 'other';
-    audio?: boolean;
+    text: string;
+    senderId: string;
+    receiverId?: string;
+    createdAt?: any;
 };
 
-const messages: MessageType[] = [
-    {
-        id: '1',
-        text: 'Hello! Jhon Abraham',
-        time: '09:25 AM',
-        sender: 'me',
-    },
-    {
-        id: '2',
-        text: 'Hello ! Nazrul How are you?',
-        time: '09:25 AM',
-        sender: 'other',
-    },
-    {
-        id: '3',
-        text: 'You did your job well!',
-        time: '09:25 AM',
-        sender: 'me',
-    },
-    {
-        id: '4',
-        text: 'Have a great working week!!',
-        time: '09:25 AM',
-        sender: 'other',
-    },
-    {
-        id: '5',
-        text: 'Hope you like it',
-        time: '09:25 AM',
-        sender: 'other',
-    },
-    {
-        id: '6',
-        time: '09:25 AM',
-        sender: 'me',
-        audio: true,
-    },
-];
+type MessageRouteParams = {
+    userName?: string;
+    userImage?: string;
+    receiverId: string;
+};
 
 export default function MessageScreen() {
+
+    const navigation = useNavigation<any>();
+
+    const route = useRoute<any>();
+
+    const flatListRef = useRef<FlatList<MessageItem>>(null);
+
+    const {
+        userName = 'User',
+        userImage = 'https://i.pravatar.cc/150?img=12',
+        receiverId = '',
+    } = (route.params || {}) as MessageRouteParams;
+
+    const currentUser = auth.currentUser;
+
+    const currentUserId = currentUser?.uid || '';
+
     const [message, setMessage] = useState('');
 
-    const renderMessage = ({ item }: { item: MessageType }) => {
-        const isMe = item.sender === 'me';
+    const [messages, setMessages] = useState<MessageItem[]>([]);
+
+    // FIXED CHAT ID
+    const chatId =
+        currentUserId && receiverId
+            ? [currentUserId, receiverId]
+                .sort()
+                .join('_')
+            : null;
+
+    // GET ALL MESSAGES
+    useEffect(() => {
+
+        if (!chatId) return;
+
+        const q = query(
+            collection(
+                db,
+                'chats',
+                chatId,
+                'messages'
+            ),
+            orderBy('createdAt', 'asc')
+        );
+
+        const unsubscribe = onSnapshot(
+            q,
+            snapshot => {
+
+                const allMessages =
+                    snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                    })) as MessageItem[];
+
+                setMessages(allMessages);
+
+                setTimeout(() => {
+
+                    flatListRef.current?.scrollToEnd({
+                        animated: true,
+                    });
+
+                }, 200);
+            },
+            error => {
+                console.log(
+                    'GET MESSAGE ERROR:',
+                    error
+                );
+            }
+        );
+
+        return unsubscribe;
+
+    }, [chatId]);
+
+    // SEND MESSAGE
+    const sendMessage = async () => {
+
+        try {
+
+            if (!currentUserId) {
+                Alert.alert(
+                    'Error',
+                    'User not logged in'
+                );
+                return;
+            }
+
+            if (!receiverId) {
+                Alert.alert(
+                    'Error',
+                    'Receiver not found'
+                );
+                return;
+            }
+
+            if (!message.trim()) {
+                return;
+            }
+
+            const newMessage = message.trim();
+
+            console.log({
+                currentUserId,
+                receiverId,
+                chatId,
+            });
+
+            // CREATE CHAT
+            await setDoc(
+                doc(db, 'chats', chatId!),
+                {
+                    users: [
+                        currentUserId,
+                        receiverId,
+                    ],
+
+                    lastMessage: newMessage,
+
+                    lastMessageTime:
+                        serverTimestamp(),
+                },
+                { merge: true }
+            );
+
+            // ADD MESSAGE
+            await addDoc(
+                collection(
+                    db,
+                    'chats',
+                    chatId!,
+                    'messages'
+                ),
+                {
+                    text: newMessage,
+
+                    senderId: currentUserId,
+
+                    receiverId: receiverId,
+
+                    createdAt:
+                        serverTimestamp(),
+                }
+            );
+
+            setMessage('');
+
+            console.log('MESSAGE SENT');
+
+        } catch (error) {
+
+            console.log(
+                'SEND MESSAGE ERROR:',
+                error
+            );
+
+            Alert.alert(
+                'Error',
+                'Message not sent'
+            );
+        }
+    };
+
+    // RENDER MESSAGE
+    const renderMessage = ({
+        item,
+    }: {
+        item: MessageItem;
+    }) => {
+
+        const isMe =
+            item.senderId === currentUserId;
 
         return (
             <View
                 style={[
                     styles.messageWrapper,
-                    isMe ? styles.myWrapper : styles.otherWrapper,
+
+                    isMe
+                        ? styles.myWrapper
+                        : styles.otherWrapper,
                 ]}
             >
+
                 {!isMe && (
                     <Image
                         source={{
-                            uri: 'https://i.pravatar.cc/150?img=12',
+                            uri:
+                                userImage &&
+                                    userImage.trim() !== ''
+                                    ? userImage
+                                    : 'https://i.pravatar.cc/150?img=12',
                         }}
-                        style={styles.avatar}
+                        style={styles.profileImage}
                     />
                 )}
 
-                <View style={{ maxWidth: '78%' }}>
+                <View
+                    style={{
+                        maxWidth: '78%',
+                    }}
+                >
+
                     {!isMe && (
-                        <Text style={styles.userName}>Jhon Abraham</Text>
-                    )}
-
-                    {item.audio ? (
-                        <View style={styles.audioBubble}>
-                            <TouchableOpacity style={styles.playButton}>
-                                <AntDesign
-                                    name="caret-right"
-                                    size={18}
-                                    color="#fff"
-                                />
-                            </TouchableOpacity>
-
-                            <View style={styles.waveContainer}>
-                                {Array.from({ length: 22 }).map((_, index) => (
-                                    <View
-                                        key={index}
-                                        style={[
-                                            styles.wave,
-                                            {
-                                                height:
-                                                    Math.random() * 16 + 8,
-                                            },
-                                        ]}
-                                    />
-                                ))}
-                            </View>
-
-                            <Text style={styles.audioTime}>
-                                00:16
-                            </Text>
-                        </View>
-                    ) : (
-                        <View
-                            style={[
-                                styles.messageBubble,
-                                isMe
-                                    ? styles.myMessage
-                                    : styles.otherMessage,
-                            ]}
+                        <Text
+                            style={
+                                styles.userName
+                            }
                         >
-                            <Text
-                                style={[
-                                    styles.messageText,
-                                    {
-                                        color: isMe
-                                            ? '#fff'
-                                            : '#222',
-                                    },
-                                ]}
-                            >
-                                {item.text}
-                            </Text>
-                        </View>
+                            {userName}
+                        </Text>
                     )}
 
-                    <Text
+                    <View
                         style={[
-                            styles.timeText,
-                            {
-                                textAlign: isMe
-                                    ? 'right'
-                                    : 'left',
-                            },
+                            styles.messageBubble,
+
+                            isMe
+                                ? styles.myMessage
+                                : styles.otherMessage,
                         ]}
                     >
-                        {item.time}
-                    </Text>
+
+                        <Text
+                            style={[
+                                styles.messageText,
+
+                                {
+                                    color: isMe
+                                        ? '#fff'
+                                        : '#111',
+                                },
+                            ]}
+                        >
+                            {item.text}
+                        </Text>
+
+                    </View>
+
                 </View>
+
             </View>
         );
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity>
-                    <Ionicons
-                        name="arrow-back"
-                        size={24}
-                        color="#111"
-                    />
-                </TouchableOpacity>
 
-                <View style={styles.profileSection}>
-                    <View>
+        <SafeAreaView style={styles.container}>
+
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={
+                    Platform.OS === 'ios'
+                        ? 'padding'
+                        : undefined
+                }
+            >
+
+                {/* HEADER */}
+                <View style={styles.header}>
+
+                    <TouchableOpacity
+                        onPress={() =>
+                            navigation.goBack()
+                        }
+                    >
+                        <Ionicons
+                            name="arrow-back"
+                            size={24}
+                            color="#111"
+                        />
+                    </TouchableOpacity>
+
+                    <View
+                        style={
+                            styles.profileSection
+                        }
+                    >
+
                         <Image
                             source={{
-                                uri: 'https://i.pravatar.cc/150?img=12',
+                                uri: userImage,
                             }}
-                            style={styles.profileImage}
+                            style={
+                                styles.profileImage
+                            }
                         />
 
-                        <View style={styles.onlineDot} />
+                        <View>
+
+                            <Text
+                                style={
+                                    styles.headerName
+                                }
+                            >
+                                {userName}
+                            </Text>
+
+                            <Text
+                                style={
+                                    styles.activeText
+                                }
+                            >
+                                Online
+                            </Text>
+
+                        </View>
+
                     </View>
 
-                    <View>
-                        <Text style={styles.headerName}>
-                            Jhon Abraham
-                        </Text>
-                        <Text style={styles.activeText}>
-                            Active now
-                        </Text>
+                    <View
+                        style={
+                            styles.headerIcons
+                        }
+                    >
+
+                        <TouchableOpacity
+                            style={
+                                styles.iconButton
+                            }
+                        >
+                            <Feather
+                                name="phone"
+                                size={22}
+                                color="#111"
+                            />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={
+                                styles.iconButton
+                            }
+                        >
+                            <Feather
+                                name="video"
+                                size={22}
+                                color="#111"
+                            />
+                        </TouchableOpacity>
+
                     </View>
+
                 </View>
 
-                <View style={styles.headerIcons}>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Feather
-                            name="phone"
-                            size={22}
-                            color="#111"
-                        />
-                    </TouchableOpacity>
+                {/* MESSAGES */}
+                <FlatList
+                    ref={flatListRef}
+                    data={messages}
+                    keyExtractor={item =>
+                        item.id
+                    }
+                    renderItem={renderMessage}
+                    showsVerticalScrollIndicator={
+                        false
+                    }
+                    contentContainerStyle={{
+                        paddingVertical: 20,
+                    }}
+                />
 
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Feather
-                            name="video"
-                            size={22}
-                            color="#111"
-                        />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* Today */}
-            <View style={styles.todayContainer}>
-                <Text style={styles.todayText}>Today</Text>
-            </View>
-
-            {/* Messages */}
-            <FlatList
-                data={messages}
-                keyExtractor={(item) => item.id}
-                renderItem={renderMessage}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{
-                    paddingBottom: 20,
-                }}
-            />
-
-            {/* Input */}
-            <View style={styles.inputContainer}>
-                <TouchableOpacity>
-                    <Feather
-                        name="paperclip"
-                        size={24}
-                        color="#111"
-                    />
-                </TouchableOpacity>
-
-                <View style={styles.inputBox}>
-                    <TextInput
-                        placeholder="Write your message"
-                        placeholderTextColor="#999"
-                        value={message}
-                        onChangeText={setMessage}
-                        style={styles.input}
-                    />
+                {/* INPUT */}
+                <View
+                    style={
+                        styles.inputContainer
+                    }
+                >
 
                     <TouchableOpacity>
-                        <MaterialIcons
-                            name="emoji-emotions"
+                        <Feather
+                            name="paperclip"
                             size={22}
-                            color="#777"
+                            color="#111"
                         />
                     </TouchableOpacity>
+
+                    <View
+                        style={styles.inputBox}
+                    >
+
+                        <TextInput
+                            placeholder="Write message..."
+                            placeholderTextColor="#999"
+                            value={message}
+                            onChangeText={
+                                setMessage
+                            }
+                            style={styles.input}
+                            multiline
+                        />
+
+                        <TouchableOpacity>
+                            <MaterialIcons
+                                name="emoji-emotions"
+                                size={22}
+                                color="#777"
+                            />
+                        </TouchableOpacity>
+
+                    </View>
+
+                    <TouchableOpacity
+                        style={
+                            styles.sendButton
+                        }
+                        onPress={sendMessage}
+                    >
+
+                        <Ionicons
+                            name="send"
+                            size={20}
+                            color="#fff"
+                        />
+
+                    </TouchableOpacity>
+
                 </View>
 
-                <TouchableOpacity style={styles.bottomIcon}>
-                    <Feather
-                        name="camera"
-                        size={24}
-                        color="#111"
-                    />
-                </TouchableOpacity>
+            </KeyboardAvoidingView>
 
-                <TouchableOpacity style={styles.bottomIcon}>
-                    <Feather
-                        name="mic"
-                        size={24}
-                        color="#111"
-                    />
-                </TouchableOpacity>
-            </View>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
+
     container: {
         flex: 1,
         backgroundColor: '#F7F8FA',
@@ -306,27 +515,15 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
 
-    onlineDot: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: '#18D26E',
-        position: 'absolute',
-        right: 10,
-        bottom: 2,
-        borderWidth: 2,
-        borderColor: '#fff',
-    },
-
     headerName: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
         color: '#111',
     },
 
     activeText: {
-        fontSize: 14,
-        color: '#777',
+        fontSize: 13,
+        color: '#22C55E',
         marginTop: 2,
     },
 
@@ -337,21 +534,6 @@ const styles = StyleSheet.create({
 
     iconButton: {
         marginLeft: 14,
-    },
-
-    todayContainer: {
-        alignItems: 'center',
-        marginVertical: 18,
-    },
-
-    todayText: {
-        backgroundColor: '#ECECEC',
-        paddingHorizontal: 16,
-        paddingVertical: 6,
-        borderRadius: 14,
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#555',
     },
 
     messageWrapper: {
@@ -373,82 +555,35 @@ const styles = StyleSheet.create({
         height: 42,
         borderRadius: 21,
         marginRight: 10,
-        marginTop: 28,
+        marginTop: 22,
     },
 
     userName: {
-        fontSize: 20,
+        fontSize: 14,
         fontWeight: '700',
         color: '#111',
-        marginBottom: 8,
+        marginBottom: 6,
     },
 
     messageBubble: {
-        paddingHorizontal: 18,
-        paddingVertical: 14,
-        borderRadius: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 13,
+        borderRadius: 18,
     },
 
     myMessage: {
-        backgroundColor: '#20C5B5',
-        borderBottomRightRadius: 6,
+        backgroundColor: '#2563EB',
+        borderBottomRightRadius: 5,
     },
 
     otherMessage: {
         backgroundColor: '#ECEFF3',
-        borderBottomLeftRadius: 6,
+        borderBottomLeftRadius: 5,
     },
 
     messageText: {
         fontSize: 16,
         lineHeight: 22,
-        fontWeight: '500',
-    },
-
-    timeText: {
-        fontSize: 13,
-        color: '#888',
-        marginTop: 8,
-        paddingHorizontal: 6,
-    },
-
-    audioBubble: {
-        backgroundColor: '#20C5B5',
-        borderRadius: 20,
-        borderBottomRightRadius: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 14,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-
-    playButton: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        backgroundColor: 'rgba(255,255,255,0.25)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 10,
-    },
-
-    waveContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginRight: 10,
-    },
-
-    wave: {
-        width: 3,
-        backgroundColor: '#A5F2EA',
-        marginHorizontal: 1,
-        borderRadius: 3,
-    },
-
-    audioTime: {
-        color: '#fff',
-        fontWeight: '600',
-        fontSize: 15,
     },
 
     inputContainer: {
@@ -463,12 +598,12 @@ const styles = StyleSheet.create({
 
     inputBox: {
         flex: 1,
-        height: 52,
+        minHeight: 50,
         backgroundColor: '#F2F3F5',
-        borderRadius: 18,
+        borderRadius: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         marginHorizontal: 12,
     },
 
@@ -476,9 +611,16 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 16,
         color: '#111',
+        paddingVertical: 10,
     },
 
-    bottomIcon: {
-        marginLeft: 12,
+    sendButton: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: '#2563EB',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
+
 });

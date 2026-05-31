@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+
 import {
     View,
     Text,
@@ -6,71 +7,126 @@ import {
     FlatList,
     Image,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
+    TextInput,
+    Alert,
 } from 'react-native';
 
-type UserType = {
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { Ionicons } from '@expo/vector-icons';
+
+import {
+    collection,
+    addDoc,
+    getDocs,
+    query,
+    where,
+} from 'firebase/firestore';
+
+import { auth, db } from '../../services/firebase';
+
+type UserItem = {
     id: string;
-    name: string;
-    image: string;
+    name?: string;
+    image?: string;
     isFriendAdded: boolean;
 };
 
 export default function PeopleScreen() {
-    const [users, setUsers] = useState<UserType[]>([
-        {
-            id: '1',
-            name: 'Rahul Sharma',
-            image: 'https://i.pravatar.cc/150?img=1',
-            isFriendAdded: false,
-        },
-        {
-            id: '2',
-            name: 'Priya Verma',
-            image: 'https://i.pravatar.cc/150?img=5',
-            isFriendAdded: false,
-        },
-        {
-            id: '3',
-            name: 'Aman Gupta',
-            image: 'https://i.pravatar.cc/150?img=8',
-            isFriendAdded: false,
-        },
-        {
-            id: '4',
-            name: 'Sneha Kapoor',
-            image: 'https://i.pravatar.cc/150?img=9',
-            isFriendAdded: false,
-        },
-        {
-            id: '5',
-            name: 'Vikram Singh',
-            image: 'https://i.pravatar.cc/150?img=11',
-            isFriendAdded: false,
-        },
-        {
-            id: '6',
-            name: 'Neha Joshi',
-            image: 'https://i.pravatar.cc/150?img=16',
-            isFriendAdded: false,
-        },
-    ]);
+    const [search, setSearch] = useState('');
 
-    const toggleFriendRequest = (id: string) => {
-        const updatedUsers = users.map(user =>
-            user.id === id
-                ? {
-                    ...user,
-                    isFriendAdded: !user.isFriendAdded,
+    const [users, setUsers] = useState<UserItem[]>([]);
+
+    const currentUser = auth.currentUser;
+    const currentUserId = currentUser?.uid;
+
+    useEffect(() => {
+        if (!currentUserId) return;
+        loadUsers();
+    }, [currentUserId]);
+
+    const loadUsers = async () => {
+        if (!currentUserId) return;
+
+        try {
+            const snapshot = await getDocs(
+                collection(db, 'users')
+            );
+
+            const userList: UserItem[] = [];
+
+            snapshot.forEach(doc => {
+                if (doc.id !== currentUserId) {
+                    const data = doc.data();
+
+                    userList.push({
+                        id: doc.id,
+                        name: data.name as string | undefined,
+                        image: data.image as string | undefined,
+                        isFriendAdded: false,
+                    });
                 }
-                : user
-        );
+            });
 
-        setUsers(updatedUsers);
+            setUsers(userList);
+        } catch (error) {
+            console.log(error);
+        }
     };
 
-    const renderItem = ({ item }: { item: UserType }) => {
+    const sendFriendRequest = async (receiverId: string) => {
+        if (!currentUserId) {
+            Alert.alert('Error', 'Unable to send request without logged in user');
+            return;
+        }
+
+        try {
+            const q = query(
+                collection(db, 'friendRequests'),
+                where('senderId', '==', currentUserId),
+                where('receiverId', '==', receiverId)
+            );
+
+            const existingRequest = await getDocs(q);
+
+            if (!existingRequest.empty) {
+                Alert.alert('Already Sent', 'Friend request already exists');
+                return;
+            }
+
+            await addDoc(collection(db, 'friendRequests'), {
+                senderId: currentUserId,
+                receiverId,
+                status: 'pending',
+                createdAt: new Date(),
+            });
+
+            const updatedUsers = users.map(user =>
+                user.id === receiverId
+                    ? {
+                          ...user,
+                          isFriendAdded: true,
+                      }
+                    : user
+            );
+
+            setUsers(updatedUsers);
+
+            Alert.alert('Success', 'Friend request sent');
+        } catch (error) {
+            console.log(error);
+            Alert.alert('Error', 'Failed to send request');
+        }
+    };
+
+    const filteredUsers = users.filter(user =>
+        user.name
+            ?.toLowerCase()
+            ?.includes(search.toLowerCase()) ?? false
+    );
+
+    const renderItem = ({ item }: { item: UserItem }) => {
         return (
             <View style={styles.card}>
                 <View style={styles.leftSection}>
@@ -93,8 +149,9 @@ export default function PeopleScreen() {
                 <TouchableOpacity
                     activeOpacity={0.8}
                     onPress={() =>
-                        toggleFriendRequest(item.id)
+                        sendFriendRequest(item.id)
                     }
+                    disabled={item.isFriendAdded}
                     style={[
                         styles.button,
                         item.isFriendAdded &&
@@ -109,8 +166,8 @@ export default function PeopleScreen() {
                         ]}
                     >
                         {item.isFriendAdded
-                            ? 'Cancel'
-                            : 'Add Friend'}
+                            ? 'Sent'
+                            : 'Add'}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -134,8 +191,24 @@ export default function PeopleScreen() {
                 </Text>
             </View>
 
+            <View style={styles.searchContainer}>
+                <Ionicons
+                    name="search"
+                    size={20}
+                    color="#9CA3AF"
+                />
+
+                <TextInput
+                    placeholder="Search friends..."
+                    placeholderTextColor="#9CA3AF"
+                    value={search}
+                    onChangeText={setSearch}
+                    style={styles.searchInput}
+                />
+            </View>
+
             <FlatList
-                data={users}
+                data={filteredUsers}
                 keyExtractor={item => item.id}
                 renderItem={renderItem}
                 showsVerticalScrollIndicator={false}
@@ -155,7 +228,7 @@ const styles = StyleSheet.create({
 
     header: {
         paddingHorizontal: 20,
-        paddingTop: 20,
+        paddingTop: 10,
         paddingBottom: 10,
     },
 
@@ -171,30 +244,37 @@ const styles = StyleSheet.create({
         color: '#6B7280',
     },
 
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        marginHorizontal: 16,
+        marginBottom: 14,
+        paddingHorizontal: 14,
+        height: 52,
+        borderRadius: 16,
+    },
+
+    searchInput: {
+        flex: 1,
+        marginLeft: 10,
+        fontSize: 15,
+        color: '#111827',
+    },
+
     listContainer: {
-        padding: 16,
-        paddingBottom: 30,
+        paddingHorizontal: 16,
+        paddingBottom: 20,
     },
 
     card: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 20,
+        borderRadius: 18,
         padding: 14,
         marginBottom: 14,
-
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 3,
-        },
-        shadowOpacity: 0.08,
-        shadowRadius: 4.65,
-
-        elevation: 4,
     },
 
     leftSection: {
@@ -204,14 +284,14 @@ const styles = StyleSheet.create({
     },
 
     profileImage: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        width: 58,
+        height: 58,
+        borderRadius: 29,
         marginRight: 14,
     },
 
     name: {
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: '700',
         color: '#111827',
     },
@@ -224,15 +304,15 @@ const styles = StyleSheet.create({
 
     button: {
         backgroundColor: '#2563EB',
-        paddingVertical: 10,
+        paddingVertical: 9,
         paddingHorizontal: 18,
         borderRadius: 12,
-        minWidth: 110,
+        minWidth: 90,
         alignItems: 'center',
     },
 
     cancelButton: {
-        backgroundColor: '#FEE2E2',
+        backgroundColor: '#DBEAFE',
     },
 
     buttonText: {
@@ -242,6 +322,6 @@ const styles = StyleSheet.create({
     },
 
     cancelButtonText: {
-        color: '#DC2626',
+        color: '#2563EB',
     },
 });

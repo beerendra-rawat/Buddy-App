@@ -1,312 +1,238 @@
-import React, { useState } from 'react';
-
 import {
     View,
     Text,
-    StyleSheet,
     Image,
     TouchableOpacity,
+    StyleSheet,
     ScrollView,
-    TextInput,
+    StatusBar,
+    ActivityIndicator,
 } from 'react-native';
 
+import { useEffect, useState } from 'react';
+
+import { MaterialIcons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+
 import {
-    Ionicons,
-    Feather,
-    MaterialIcons,
-} from '@expo/vector-icons';
+    doc,
+    getDoc,
+} from 'firebase/firestore';
+
+import { auth, db, } from '../../services/firebase'; // update path
 
 export default function ProfileScreen() {
 
-    const [isEdit, setIsEdit] =
-        useState(false);
+    const [username, setUsername] = useState('');
+    const [loading, setLoading] = useState(true);
 
-    const [name, setName] =
-        useState('Beerendra');
+    useEffect(() => {
 
-    const [bio, setBio] = useState(
-        'React Native Developer 🚀'
-    );
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
 
-    const [birthday, setBirthday] =
-        useState('10 April 2002');
+            if (user) {
 
-    return (
-        <ScrollView
-            style={styles.container}
-            showsVerticalScrollIndicator={false}
-        >
+                try {
 
-            {/* Header */}
-            <View style={styles.header}>
+                    const userRef = doc(
+                        db,
+                        'users',
+                        user.uid
+                    );
 
-                <TouchableOpacity
-                    style={styles.headerBtn}
-                >
-                    <Ionicons
-                        name="chevron-back"
-                        size={24}
-                        color="#111827"
-                    />
-                </TouchableOpacity>
+                    const userSnap = await getDoc(userRef);
 
-                <Text style={styles.headerTitle}>
-                    Profile
-                </Text>
+                    if (userSnap.exists()) {
 
-                <TouchableOpacity
-                    style={styles.headerBtn}
-                    onPress={() =>
-                        setIsEdit(!isEdit)
-                    }
-                >
-                    <Feather
-                        name={
-                            isEdit
-                                ? 'check'
-                                : 'edit-2'
-                        }
-                        size={20}
-                        color="#4F46E5"
-                    />
-                </TouchableOpacity>
+                        const userData = userSnap.data();
 
-            </View>
-
-            {/* Profile Card */}
-            <View style={styles.card}>
-
-                {/* Profile Image */}
-                <View style={styles.imageContainer}>
-
-                    <Image
-                        source={{
-                            uri:
-                                'https://randomuser.me/api/portraits/men/32.jpg',
-                        }}
-                        style={styles.image}
-                    />
-
-                    <TouchableOpacity
-                        style={styles.cameraBtn}
-                    >
-                        <Ionicons
-                            name="camera"
-                            size={18}
-                            color="#fff"
-                        />
-                    </TouchableOpacity>
-
-                </View>
-
-                {/* Name */}
-                {
-                    isEdit ? (
-                        <TextInput
-                            value={name}
-                            onChangeText={setName}
-                            style={styles.input}
-                            placeholder="Name"
-                        />
-                    ) : (
-                        <Text style={styles.name}>
-                            {name}
-                        </Text>
-                    )
-                }
-
-                {/* Online Status */}
-                <View style={styles.onlineRow}>
-
-                    <View
-                        style={styles.onlineDot}
-                    />
-
-                    <Text
-                        style={styles.onlineText}
-                    >
-                        Online
-                    </Text>
-
-                </View>
-
-                {/* Bio */}
-                {
-                    isEdit ? (
-                        <TextInput
-                            value={bio}
-                            onChangeText={setBio}
-                            multiline
-                            style={[
-                                styles.input,
-                                {
-                                    height: 80,
-                                },
-                            ]}
-                            placeholder="Bio"
-                        />
-                    ) : (
-                        <Text style={styles.bio}>
-                            {bio}
-                        </Text>
-                    )
-                }
-
-                {/* Birthday */}
-                <View style={styles.birthdayBox}>
-
-                    <Ionicons
-                        name="gift-outline"
-                        size={22}
-                        color="#4F46E5"
-                    />
-
-                    {
-                        isEdit ? (
-                            <TextInput
-                                value={birthday}
-                                onChangeText={
-                                    setBirthday
-                                }
-                                style={
-                                    styles.birthdayInput
-                                }
-                                placeholder="Birthday"
-                            />
-                        ) : (
-                            <Text
-                                style={
-                                    styles.birthdayText
-                                }
-                            >
-                                Birthday : {birthday}
-                            </Text>
-                        )
+                        setUsername(
+                            userData.name || 'No Name'
+                        );
                     }
 
-                </View>
+                } catch (error) {
 
-                {/* Stats */}
-                <View style={styles.statsRow}>
-
-                    <View style={styles.statItem}>
-                        <Text
-                            style={styles.statNumber}
-                        >
-                            245
-                        </Text>
-
-                        <Text
-                            style={styles.statLabel}
-                        >
-                            Friends
-                        </Text>
-                    </View>
-
-                    <View style={styles.statItem}>
-                        <Text
-                            style={styles.statNumber}
-                        >
-                            18
-                        </Text>
-
-                        <Text
-                            style={styles.statLabel}
-                        >
-                            Groups
-                        </Text>
-                    </View>
-
-                    <View style={styles.statItem}>
-                        <Text
-                            style={styles.statNumber}
-                        >
-                            320
-                        </Text>
-
-                        <Text
-                            style={styles.statLabel}
-                        >
-                            Chats
-                        </Text>
-                    </View>
-
-                </View>
-
-                {/* Buttons */}
-                <View style={styles.buttonRow}>
-
-                    <TouchableOpacity
-                        style={styles.messageBtn}
-                    >
-                        <Ionicons
-                            name="chatbubble-outline"
-                            size={20}
-                            color="#fff"
-                        />
-
-                        <Text style={styles.btnText}>
-                            Message
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.actionBtn}
-                    >
-                        <Ionicons
-                            name="call-outline"
-                            size={22}
-                            color="#4F46E5"
-                        />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.actionBtn}
-                    >
-                        <Ionicons
-                            name="videocam-outline"
-                            size={22}
-                            color="#4F46E5"
-                        />
-                    </TouchableOpacity>
-
-                </View>
-
-                {/* Save Button */}
-                {
-                    isEdit && (
-                        <TouchableOpacity
-                            style={styles.saveBtn}
-                        >
-                            <Text
-                                style={styles.saveText}
-                            >
-                                Save Profile
-                            </Text>
-                        </TouchableOpacity>
-                    )
+                    console.log(
+                        'USER DATA ERROR:',
+                        error
+                    );
                 }
+            }
 
-            </View>
+            setLoading(false);
+        });
 
-            {/* Logout */}
-            <TouchableOpacity
-                style={styles.logoutBtn}
-            >
+        return unsubscribe;
 
-                <MaterialIcons
-                    name="logout"
-                    size={22}
-                    color="#EF4444"
+    }, []);
+
+    const handleLogout = async () => {
+
+        try {
+
+            await signOut(auth);
+
+        } catch (error) {
+
+            console.log(
+                'LOGOUT ERROR:',
+                error
+            );
+        }
+    };
+
+
+    const settings = [
+        {
+            title: 'Account Settings',
+            icon: 'person-outline',
+        },
+        {
+            title: 'Notification Preferences',
+            icon: 'notifications-none',
+        },
+        {
+            title: 'Help & Support',
+            icon: 'help-outline',
+        },
+    ];
+
+    if (loading) {
+
+        return (
+
+            <SafeAreaView style={styles.loaderContainer}>
+
+                <ActivityIndicator
+                    size="large"
+                    color="#4F46E5"
                 />
 
-                <Text style={styles.logoutText}>
-                    Logout
-                </Text>
+            </SafeAreaView>
+        );
+    }
 
-            </TouchableOpacity>
+    return (
 
-        </ScrollView>
+        <SafeAreaView style={styles.container}>
+
+            <StatusBar
+                barStyle="dark-content"
+                backgroundColor="#F7F8FA"
+            />
+
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContainer}
+            >
+
+                {/* Profile */}
+                <View style={styles.profileContainer}>
+
+                    <View style={styles.imageWrapper}>
+
+                        <Image
+                            source={{
+                                uri: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
+                            }}
+                            style={styles.profileImage}
+                        />
+
+                        <View style={styles.onlineDot} />
+
+                    </View>
+
+                    {/* Firebase Username */}
+                    <Text style={styles.name}>
+                        {username}
+                    </Text>
+
+                    <Text style={styles.bio}>
+                        Always learning
+                    </Text>
+
+                    <Text style={styles.friendText}>
+                        1.2k Friends
+                    </Text>
+
+                    <TouchableOpacity style={styles.editButton}>
+
+                        <MaterialIcons
+                            name="edit"
+                            size={18}
+                            color="#4F46E5"
+                        />
+
+                        <Text style={styles.editButtonText}>
+                            Edit Profile
+                        </Text>
+
+                    </TouchableOpacity>
+
+                </View>
+
+                {/* Settings */}
+                <View style={styles.settingsContainer}>
+
+                    {settings.map((item, index) => (
+
+                        <TouchableOpacity
+                            key={index}
+                            style={styles.settingButton}
+                            activeOpacity={0.7}
+                        >
+
+                            <View style={styles.settingLeft}>
+
+                                <MaterialIcons
+                                    name={item.icon as any}
+                                    size={22}
+                                    color="#4F46E5"
+                                />
+
+                                <Text style={styles.settingText}>
+                                    {item.title}
+                                </Text>
+
+                            </View>
+
+                            <MaterialIcons
+                                name="chevron-right"
+                                size={22}
+                                color="#9CA3AF"
+                            />
+
+                        </TouchableOpacity>
+
+                    ))}
+
+                </View>
+
+                {/* Logout */}
+                <TouchableOpacity
+                    style={styles.logoutButton}
+                    onPress={handleLogout}
+                >
+
+                    <MaterialIcons
+                        name="logout"
+                        size={20}
+                        color="#EF4444"
+                    />
+
+                    <Text style={styles.logoutText}>
+                        Log Out
+                    </Text>
+
+                </TouchableOpacity>
+
+            </ScrollView>
+
+        </SafeAreaView>
+
     );
 }
 
@@ -314,259 +240,139 @@ const styles = StyleSheet.create({
 
     container: {
         flex: 1,
-        backgroundColor: '#F5F7FB',
+        backgroundColor: '#F7F8FA',
     },
 
-    /* Header */
-    header: {
-        paddingTop: 65,
-        paddingHorizontal: 20,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-
-    headerBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 14,
-        backgroundColor: '#fff',
+    loaderContainer: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        elevation: 3,
     },
 
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#111827',
+    scrollContainer: {
+        paddingHorizontal: 20,
+        paddingBottom: 30,
     },
 
-    /* Card */
-    card: {
-        backgroundColor: '#fff',
-        marginHorizontal: 20,
-        marginTop: 24,
-        borderRadius: 30,
-        padding: 22,
+    profileContainer: {
         alignItems: 'center',
-
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 4,
+        marginTop: 60,
     },
 
-    imageContainer: {
+    imageWrapper: {
         position: 'relative',
+        marginBottom: 20,
     },
 
-    image: {
+    profileImage: {
         width: 120,
         height: 120,
         borderRadius: 60,
-    },
-
-    cameraBtn: {
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: '#4F46E5',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    name: {
-        fontSize: 26,
-        fontWeight: '700',
-        color: '#111827',
-        marginTop: 18,
-    },
-
-    onlineRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 8,
-    },
-
-    onlineDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: '#22C55E',
-        marginRight: 6,
-    },
-
-    onlineText: {
-        color: '#22C55E',
-        fontSize: 14,
-        fontWeight: '500',
-    },
-
-    bio: {
-        marginTop: 14,
-        fontSize: 15,
-        color: '#6B7280',
-        textAlign: 'center',
-        lineHeight: 24,
-        paddingHorizontal: 10,
-    },
-
-    input: {
-        width: '100%',
-        backgroundColor: '#F3F4F6',
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        fontSize: 16,
-        color: '#111827',
-        marginTop: 16,
-    },
-
-    /* Birthday */
-    birthdayBox: {
-        width: '100%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#EEF2FF',
-        borderRadius: 18,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        marginTop: 22,
-    },
-
-    birthdayText: {
-        marginLeft: 10,
-        color: '#111827',
-        fontSize: 15,
-        fontWeight: '500',
-    },
-
-    birthdayInput: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 15,
-        color: '#111827',
-    },
-
-    /* Stats */
-    statsRow: {
-        flexDirection: 'row',
-        width: '100%',
-        justifyContent: 'space-between',
-        marginTop: 28,
-    },
-
-    statItem: {
-        flex: 1,
-        alignItems: 'center',
-    },
-
-    statNumber: {
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#111827',
-    },
-
-    statLabel: {
-        marginTop: 4,
-        color: '#6B7280',
-        fontSize: 14,
-    },
-
-    /* Buttons */
-    buttonRow: {
-        flexDirection: 'row',
-        width: '100%',
-        marginTop: 30,
-    },
-
-    messageBtn: {
-        flex: 1,
-        height: 56,
-        borderRadius: 18,
-        backgroundColor: '#4F46E5',
-        justifyContent: 'center',
-        alignItems: 'center',
-        flexDirection: 'row',
-    },
-
-    btnText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-        marginLeft: 8,
-    },
-
-    actionBtn: {
-        width: 56,
-        height: 56,
-        borderRadius: 18,
-        backgroundColor: '#EEF2FF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: 12,
-    },
-
-    /* Save Button */
-    saveBtn: {
-        width: '100%',
-        height: 54,
-        borderRadius: 18,
-        backgroundColor: '#111827',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 22,
-    },
-
-    saveText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-
-    /* Logout */
-    logoutBtn: {
-        backgroundColor: '#fff',
-        marginHorizontal: 20,
-        marginTop: 20,
-        marginBottom: 40,
-        borderRadius: 24,
-        paddingVertical: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-        flexDirection: 'row',
+        borderWidth: 4,
+        borderColor: '#FFFFFF',
 
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
             height: 4,
         },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 4,
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+
+    onlineDot: {
+        position: 'absolute',
+        right: 5,
+        bottom: 8,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: '#22C55E',
+        borderWidth: 3,
+        borderColor: '#FFFFFF',
+    },
+
+    name: {
+        fontSize: 25,
+        fontWeight: '700',
+        color: '#111827',
+    },
+
+    bio: {
+        marginTop: 6,
+        fontSize: 15,
+        color: '#6B7280',
+    },
+
+    friendText: {
+        marginTop: 10,
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#4F46E5',
+    },
+
+    editButton: {
+        marginTop: 24,
+        width: '100%',
+        height: 52,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
+    editButtonText: {
+        marginLeft: 8,
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#4F46E5',
+    },
+
+    settingsContainer: {
+        marginTop: 40,
+    },
+
+    settingButton: {
+        height: 58,
+
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+    },
+
+    settingLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+
+    settingText: {
+        marginLeft: 14,
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#111827',
+    },
+
+    logoutButton: {
+        marginTop: 40,
+
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 
     logoutText: {
-        color: '#EF4444',
-        fontSize: 16,
-        fontWeight: '600',
         marginLeft: 8,
+        fontSize: 17,
+        fontWeight: '700',
+        color: '#EF4444',
     },
 
 });
