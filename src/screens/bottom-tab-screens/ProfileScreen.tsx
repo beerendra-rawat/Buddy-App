@@ -1,7 +1,14 @@
 import {
+    useEffect,
+    useState,
+} from 'react';
+
+import {
     View,
     Text,
     Image,
+    TextInput,
+    Alert,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
@@ -9,106 +16,236 @@ import {
     ActivityIndicator,
 } from 'react-native';
 
-import { useEffect, useState } from 'react';
-
-import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import * as ImagePicker from 'expo-image-picker';
+
+import { MaterialIcons } from '@expo/vector-icons';
+
+import {
+    onAuthStateChanged,
+    signOut,
+} from 'firebase/auth';
 
 import {
     doc,
     getDoc,
+    updateDoc,
 } from 'firebase/firestore';
 
-import { auth, db, } from '../../services/firebase'; // update path
+import {
+    auth,
+    db,
+} from '../../services/firebase';
+
+import { COLORS } from '../../constants/colors';
+import SecondaryButton from '../../components/SecondaryButton';
 
 export default function ProfileScreen() {
 
-    const [username, setUsername] = useState('');
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] =
+        useState(true);
 
+    const [isEditing, setIsEditing] =
+        useState(false);
+
+    const [userData, setUserData] =
+        useState({
+            username: '',
+            email: '',
+            bio: '',
+            photoURL: '',
+        });
+
+    // GET USER DATA
     useEffect(() => {
 
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        const unsubscribe =
+            onAuthStateChanged(
+                auth,
+                async (user) => {
 
-            if (user) {
+                    if (!user) {
 
-                try {
+                        setLoading(false);
 
-                    const userRef = doc(
-                        db,
-                        'users',
-                        user.uid
-                    );
-
-                    const userSnap = await getDoc(userRef);
-
-                    if (userSnap.exists()) {
-
-                        const userData = userSnap.data();
-
-                        setUsername(
-                            userData.name || 'No Name'
-                        );
+                        return;
                     }
 
-                } catch (error) {
+                    try {
 
-                    console.log(
-                        'USER DATA ERROR:',
-                        error
-                    );
+                        const userRef =
+                            doc(
+                                db,
+                                'users',
+                                user.uid
+                            );
+
+                        const userSnap =
+                            await getDoc(userRef);
+
+                        if (
+                            userSnap.exists()
+                        ) {
+
+                            const data =
+                                userSnap.data();
+
+                            setUserData({
+                                username:
+                                    data.name || '',
+
+                                email:
+                                    data.email || '',
+
+                                bio:
+                                    data.bio || '',
+
+                                photoURL:
+                                    data.photoURL || '',
+                            });
+                        }
+
+                    } catch (error) {
+
+                        console.log(error);
+
+                    } finally {
+
+                        setLoading(false);
+                    }
                 }
-            }
-
-            setLoading(false);
-        });
+            );
 
         return unsubscribe;
 
     }, []);
 
-    const handleLogout = async () => {
+    // HANDLE INPUT CHANGE
+    const handleChange = (
+        key: string,
+        value: string
+    ) => {
 
-        try {
-
-            await signOut(auth);
-
-        } catch (error) {
-
-            console.log(
-                'LOGOUT ERROR:',
-                error
-            );
-        }
+        setUserData(prev => ({
+            ...prev,
+            [key]: value,
+        }));
     };
 
+    // PICK IMAGE
+    const pickImage =
+        async () => {
 
-    const settings = [
-        {
-            title: 'Account Settings',
-            icon: 'person-outline',
-        },
-        {
-            title: 'Notification Preferences',
-            icon: 'notifications-none',
-        },
-        {
-            title: 'Help & Support',
-            icon: 'help-outline',
-        },
-    ];
+            const permission =
+                await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+            if (!permission.granted) {
+
+                Alert.alert(
+                    'Permission Required'
+                );
+
+                return;
+            }
+
+            const result =
+                await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes:
+                        ImagePicker.MediaTypeOptions.Images,
+
+                    allowsEditing: true,
+
+                    aspect: [1, 1],
+
+                    quality: 1,
+                });
+
+            if (!result.canceled) {
+
+                handleChange(
+                    'photoURL',
+                    result.assets[0].uri
+                );
+            }
+        };
+
+    // UPDATE PROFILE
+    const handleUpdateProfile =
+        async () => {
+
+            try {
+
+                const currentUser =
+                    auth.currentUser;
+
+                if (!currentUser) {
+                    return;
+                }
+
+                await updateDoc(
+                    doc(
+                        db,
+                        'users',
+                        currentUser.uid
+                    ),
+                    {
+                        name:
+                            userData.username,
+
+                        bio:
+                            userData.bio,
+
+                        photoURL:
+                            userData.photoURL,
+                    }
+                );
+
+                Alert.alert(
+                    'Success',
+                    'Profile updated successfully'
+                );
+
+                setIsEditing(false);
+
+            } catch (error) {
+
+                console.log(error);
+
+                Alert.alert(
+                    'Error',
+                    'Failed to update profile'
+                );
+            }
+        };
+
+    // LOGOUT
+    const handleLogout =
+        async () => {
+
+            try {
+
+                await signOut(auth);
+
+            } catch (error) {
+
+                console.log(error);
+            }
+        };
 
     if (loading) {
 
         return (
 
-            <SafeAreaView style={styles.loaderContainer}>
+            <SafeAreaView
+                style={
+                    styles.loaderContainer
+                }
+            >
 
                 <ActivityIndicator
                     size="large"
-                    color="#4F46E5"
+                    color={COLORS.primary}
                 />
 
             </SafeAreaView>
@@ -117,122 +254,203 @@ export default function ProfileScreen() {
 
     return (
 
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView
+            style={styles.container}
+            edges={['top']}
+        >
 
             <StatusBar
                 barStyle="dark-content"
-                backgroundColor="#F7F8FA"
+                backgroundColor={
+                    COLORS.background
+                }
             />
 
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContainer}
-            >
+            {/* EDIT BUTTON */}
+            <View style={styles.topContainer}>
 
-                {/* Profile */}
-                <View style={styles.profileContainer}>
-
-                    <View style={styles.imageWrapper}>
-
-                        <Image
-                            source={{
-                                uri: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
-                            }}
-                            style={styles.profileImage}
-                        />
-
-                        <View style={styles.onlineDot} />
-
-                    </View>
-
-                    {/* Firebase Username */}
-                    <Text style={styles.name}>
-                        {username}
-                    </Text>
-
-                    <Text style={styles.bio}>
-                        Always learning
-                    </Text>
-
-                    <Text style={styles.friendText}>
-                        1.2k Friends
-                    </Text>
-
-                    <TouchableOpacity style={styles.editButton}>
-
-                        <MaterialIcons
-                            name="edit"
-                            size={18}
-                            color="#4F46E5"
-                        />
-
-                        <Text style={styles.editButtonText}>
-                            Edit Profile
-                        </Text>
-
-                    </TouchableOpacity>
-
-                </View>
-
-                {/* Settings */}
-                <View style={styles.settingsContainer}>
-
-                    {settings.map((item, index) => (
-
-                        <TouchableOpacity
-                            key={index}
-                            style={styles.settingButton}
-                            activeOpacity={0.7}
-                        >
-
-                            <View style={styles.settingLeft}>
-
-                                <MaterialIcons
-                                    name={item.icon as any}
-                                    size={22}
-                                    color="#4F46E5"
-                                />
-
-                                <Text style={styles.settingText}>
-                                    {item.title}
-                                </Text>
-
-                            </View>
-
-                            <MaterialIcons
-                                name="chevron-right"
-                                size={22}
-                                color="#9CA3AF"
-                            />
-
-                        </TouchableOpacity>
-
-                    ))}
-
-                </View>
-
-                {/* Logout */}
                 <TouchableOpacity
-                    style={styles.logoutButton}
-                    onPress={handleLogout}
+                    activeOpacity={0.8}
+                    style={styles.editButton}
+                    onPress={() => {
+
+                        if (isEditing) {
+
+                            handleUpdateProfile();
+
+                        } else {
+
+                            setIsEditing(true);
+                        }
+                    }}
                 >
 
                     <MaterialIcons
-                        name="logout"
+                        name={
+                            isEditing
+                                ? 'check'
+                                : 'edit'
+                        }
                         size={20}
-                        color="#EF4444"
+                        color="#FFFFFF"
                     />
-
-                    <Text style={styles.logoutText}>
-                        Log Out
-                    </Text>
 
                 </TouchableOpacity>
 
+            </View>
+
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={
+                    styles.scrollContainer
+                }
+            >
+
+                {/* PROFILE CARD */}
+                <View style={styles.profileCard}>
+
+                    {/* PROFILE IMAGE */}
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        disabled={!isEditing}
+                        onPress={pickImage}
+                    >
+
+                        <View style={styles.imageWrapper}>
+
+                            {
+                                userData.photoURL ? (
+
+                                    <Image
+                                        source={{
+                                            uri: userData.photoURL,
+                                        }}
+                                        style={styles.profileImage}
+                                    />
+
+                                ) : (
+
+                                    <View style={styles.dummyAvatar}>
+
+                                        <MaterialIcons
+                                            name="person"
+                                            size={55}
+                                            color="#FFFFFF"
+                                        />
+
+                                    </View>
+                                )
+                            }
+
+                            {
+                                isEditing && (
+
+                                    <View
+                                        style={
+                                            styles.cameraButton
+                                        }
+                                    >
+
+                                        <MaterialIcons
+                                            name="photo-camera"
+                                            size={18}
+                                            color="#FFFFFF"
+                                        />
+
+                                    </View>
+                                )
+                            }
+
+                        </View>
+
+                    </TouchableOpacity>
+
+                    {/* USERNAME */}
+                    {
+                        isEditing ? (
+
+                            <TextInput
+                                value={
+                                    userData.username
+                                }
+                                onChangeText={text =>
+                                    handleChange(
+                                        'username',
+                                        text
+                                    )
+                                }
+                                placeholder="Username"
+                                placeholderTextColor={
+                                    COLORS.textSecondary
+                                }
+                                style={styles.input}
+                            />
+
+                        ) : (
+
+                            <Text style={styles.name}>
+                                {
+                                    userData.username
+                                }
+                            </Text>
+                        )
+                    }
+
+                    {/* EMAIL */}
+                    <Text style={styles.email}>
+                        {userData.email}
+                    </Text>
+
+                    {/* BIO */}
+                    {
+                        isEditing ? (
+
+                            <TextInput
+                                multiline
+                                value={
+                                    userData.bio
+                                }
+                                onChangeText={text =>
+                                    handleChange(
+                                        'bio',
+                                        text
+                                    )
+                                }
+                                placeholder="Write your bio..."
+                                placeholderTextColor={
+                                    COLORS.textSecondary
+                                }
+                                style={
+                                    styles.bioInput
+                                }
+                            />
+
+                        ) : (
+
+                            <Text style={styles.bio}>
+                                {
+                                    userData.bio ||
+                                    'Add your bio here...'
+                                }
+                            </Text>
+                        )
+                    }
+
+                </View>
+
             </ScrollView>
 
-        </SafeAreaView>
+            {/* LOGOUT */}
+            <View style={styles.logoutContainer}>
 
+                <SecondaryButton
+                    title="Logout"
+                    onPress={handleLogout}
+                />
+
+            </View>
+
+        </SafeAreaView>
     );
 }
 
@@ -240,139 +458,223 @@ const styles = StyleSheet.create({
 
     container: {
         flex: 1,
-        backgroundColor: '#F7F8FA',
+        backgroundColor:
+            COLORS.background,
     },
 
     loaderContainer: {
         flex: 1,
+
         justifyContent: 'center',
         alignItems: 'center',
+
+        backgroundColor:
+            COLORS.background,
+    },
+
+    topContainer: {
+        paddingHorizontal: 20,
+        paddingTop: 10,
+
+        alignItems: 'flex-end',
+    },
+
+    editButton: {
+        width: 48,
+        height: 48,
+
+        borderRadius: 18,
+
+        backgroundColor:
+            COLORS.primary,
+
+        justifyContent: 'center',
+        alignItems: 'center',
+
+        elevation: 5,
     },
 
     scrollContainer: {
+        flexGrow: 1,
+
+        justifyContent: 'center',
+
         paddingHorizontal: 20,
-        paddingBottom: 30,
+
+        paddingTop: 20,
+
+        paddingBottom: 180,
     },
 
-    profileContainer: {
+    profileCard: {
+        backgroundColor:
+            COLORS.white,
+
+        borderRadius: 30,
+
+        paddingHorizontal: 24,
+        paddingVertical: 32,
+
         alignItems: 'center',
-        marginTop: 60,
+
+        elevation: 4,
+    },
+
+    dummyAvatar: {
+        width: 130,
+        height: 130,
+
+        borderRadius: 65,
+
+        backgroundColor: COLORS.primary,
+
+        justifyContent: 'center',
+        alignItems: 'center',
+
+        borderWidth: 4,
+        borderColor: COLORS.lightBlue,
     },
 
     imageWrapper: {
         position: 'relative',
-        marginBottom: 20,
+
+        marginBottom: 18,
     },
 
     profileImage: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        borderWidth: 4,
-        borderColor: '#FFFFFF',
+        width: 130,
+        height: 130,
 
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
+        borderRadius: 65,
+
+        borderWidth: 4,
+
+        borderColor:
+            COLORS.lightBlue,
     },
 
-    onlineDot: {
+    cameraButton: {
         position: 'absolute',
-        right: 5,
-        bottom: 8,
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: '#22C55E',
+
+        bottom: 4,
+        right: 4,
+
+        width: 38,
+        height: 38,
+
+        borderRadius: 19,
+
+        backgroundColor:
+            COLORS.primary,
+
+        justifyContent: 'center',
+        alignItems: 'center',
+
         borderWidth: 3,
-        borderColor: '#FFFFFF',
+
+        borderColor:
+            COLORS.white,
     },
 
     name: {
-        fontSize: 25,
+        marginTop: 8,
+
+        fontSize: 28,
         fontWeight: '700',
-        color: '#111827',
+
+        color:
+            COLORS.textPrimary,
+    },
+
+    email: {
+        marginTop: 8,
+
+        fontSize: 15,
+
+        color:
+            COLORS.textSecondary,
     },
 
     bio: {
-        marginTop: 6,
+        marginTop: 18,
+
         fontSize: 15,
-        color: '#6B7280',
+        lineHeight: 24,
+
+        textAlign: 'center',
+
+        color:
+            COLORS.textSecondary,
     },
 
-    friendText: {
-        marginTop: 10,
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#4F46E5',
-    },
-
-    editButton: {
-        marginTop: 24,
+    input: {
         width: '100%',
-        height: 52,
-        backgroundColor: '#FFFFFF',
+
+        height: 56,
+
+        marginTop: 18,
+
         borderRadius: 18,
+
+        backgroundColor:
+            COLORS.inputBg,
+
         borderWidth: 1,
-        borderColor: '#E5E7EB',
 
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
+        borderColor:
+            COLORS.border,
 
-    editButtonText: {
-        marginLeft: 8,
+        paddingHorizontal: 18,
+
         fontSize: 16,
         fontWeight: '600',
-        color: '#4F46E5',
+
+        color:
+            COLORS.textPrimary,
     },
 
-    settingsContainer: {
-        marginTop: 40,
+    bioInput: {
+        width: '100%',
+
+        minHeight: 110,
+
+        marginTop: 18,
+
+        borderRadius: 18,
+
+        backgroundColor:
+            COLORS.inputBg,
+
+        borderWidth: 1,
+
+        borderColor:
+            COLORS.border,
+
+        paddingHorizontal: 18,
+        paddingTop: 16,
+
+        fontSize: 15,
+
+        color:
+            COLORS.textPrimary,
+
+        textAlignVertical: 'top',
     },
 
-    settingButton: {
-        height: 58,
+    logoutContainer: {
+        position: 'absolute',
 
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        left: 20,
+        right: 20,
 
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
+        bottom: 150,
     },
 
-    settingLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    logoutButtonWrapper: {
+        borderRadius: 18,
+
+        overflow: 'hidden',
+
+        backgroundColor: '#EF4444',
     },
-
-    settingText: {
-        marginLeft: 14,
-        fontSize: 16,
-        fontWeight: '500',
-        color: '#111827',
-    },
-
-    logoutButton: {
-        marginTop: 40,
-
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    logoutText: {
-        marginLeft: 8,
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#EF4444',
-    },
-
 });

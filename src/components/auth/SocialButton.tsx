@@ -10,15 +10,18 @@ import {
 type Props = {
     title: string;
     icon: any;
+    onPress: () => void;
 };
 
 export default function SocialButton({
     title,
     icon,
+    onPress,
 }: Props) {
 
     return (
-        <TouchableOpacity style={styles.button}>
+        <TouchableOpacity style={styles.button}
+        onPress={onPress}>
 
             <Image
                 source={icon}

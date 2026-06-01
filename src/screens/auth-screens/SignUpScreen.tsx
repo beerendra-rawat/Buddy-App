@@ -1,5 +1,4 @@
 import { useState } from 'react';
-
 import {
     View,
     Text,
@@ -11,18 +10,9 @@ import {
     ScrollView,
     Alert,
 } from 'react-native';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import {
-    createUserWithEmailAndPassword,
-} from 'firebase/auth';
-
-import {
-    doc,
-    setDoc,
-} from 'firebase/firestore';
-
+import { createUserWithEmailAndPassword, } from 'firebase/auth';
+import { doc, setDoc, } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 
 import BackButton from '../../components/auth/BackButton';
@@ -36,7 +26,6 @@ export default function SignUpScreen({ navigation }: any) {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(false);
 
     const handleSignUp = async () => {
@@ -66,7 +55,6 @@ export default function SignUpScreen({ navigation }: any) {
                 {
                     name,
                     email,
-                    phone,
                     online: true,
                     createdAt: Date.now(),
                 }
@@ -147,15 +135,6 @@ export default function SignUpScreen({ navigation }: any) {
                         label="Create Password"
                         value={password}
                         onChangeText={setPassword}
-                    />
-
-                    {/* Phone */}
-                    <CustomInput
-                        label="Phone Number"
-                        placeholder="+91 9876543210"
-                        keyboardType="phone-pad"
-                        value={phone}
-                        onChangeText={setPhone}
                     />
 
                     {/* Button */}

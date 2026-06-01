@@ -1,3 +1,7 @@
+// ==========================
+// FINAL FRIEND SCREEN FIXED
+// ==========================
+
 import React, { useEffect, useState } from 'react';
 
 import {
@@ -5,29 +9,30 @@ import {
     Text,
     StyleSheet,
     FlatList,
-    TextInput,
     TouchableOpacity,
     Image,
+    TextInput,
     StatusBar,
-    Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { onAuthStateChanged } from 'firebase/auth';
+import { Ionicons } from '@expo/vector-icons';
+
 import { useNavigation } from '@react-navigation/native';
 
-import { Ionicons } from '@expo/vector-icons';
+import { onAuthStateChanged } from 'firebase/auth';
 
 import {
     collection,
     query,
     where,
-    getDocs,
     getDoc,
-    updateDoc,
-    deleteDoc,
     doc,
+    onSnapshot,
+    deleteDoc,
+    serverTimestamp,
+    writeBatch,
 } from 'firebase/firestore';
 
 import { auth, db } from '../../services/firebase';
@@ -35,278 +40,444 @@ import { auth, db } from '../../services/firebase';
 type FriendRequest = {
     requestId: string;
     senderId: string;
-    name?: string;
-    image?: string;
+    name: string;
+    image: string;
 };
 
 type Friend = {
     id: string;
-    name?: string;
-    image?: string;
+    name: string;
+    image: string;
 };
 
 export default function FriendScreen() {
 
-    const [search, setSearch] = useState('');
-
-    const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
-
-    const [friends, setFriends] = useState<Friend[]>([]);
-
-    const [currentUserId, setCurrentUserId] = useState<string | null>(
-        auth.currentUser?.uid ?? null
-    );
-
     const navigation = useNavigation<any>();
 
+    const [search, setSearch] = useState('');
+
+    const [currentUserId, setCurrentUserId] =
+        useState('');
+
+    const [friendRequests, setFriendRequests] =
+        useState<FriendRequest[]>([]);
+
+    const [friends, setFriends] =
+        useState<Friend[]>([]);
+
+    // ==========================
+    // AUTH
+    // ==========================
+
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, user => {
-            setCurrentUserId(user?.uid ?? null);
-        });
+
+        const unsubscribe =
+            onAuthStateChanged(auth, user => {
+
+                if (user) {
+                    setCurrentUserId(user.uid);
+                }
+            });
 
         return unsubscribe;
+
     }, []);
 
+    // ==========================
+    // FRIEND REQUESTS
+    // ==========================
+
     useEffect(() => {
+
         if (!currentUserId) return;
 
-        loadFriendRequests();
-        loadFriends();
+        const q = query(
+            collection(db, 'friendRequests'),
+            where('receiverId', '==', currentUserId),
+            where('status', '==', 'pending')
+        );
+
+        const unsubscribe = onSnapshot(
+            q,
+            async snapshot => {
+
+                const uniqueUsers = new Set();
+
+                const requests: FriendRequest[] = [];
+
+                for (const item of snapshot.docs) {
+
+                    const data = item.data();
+
+                    const senderId = data.senderId;
+
+                    // ==========================
+                    // REMOVE DUPLICATE REQUESTS
+                    // ==========================
+
+                    if (
+                        uniqueUsers.has(senderId)
+                    ) {
+
+                        // AUTO DELETE DUPLICATE
+                        await deleteDoc(
+                            doc(
+                                db,
+                                'friendRequests',
+                                item.id
+                            )
+                        );
+
+                        continue;
+                    }
+
+                    uniqueUsers.add(senderId);
+
+                    const userSnap = await getDoc(
+                        doc(db, 'users', senderId)
+                    );
+
+                    if (!userSnap.exists()) continue;
+
+                    const userData = userSnap.data();
+
+                    requests.push({
+                        requestId: item.id,
+                        senderId,
+
+                        name:
+                            userData?.name ||
+                            userData?.username ||
+                            'No Name',
+
+                        image:
+                            userData?.photoURL ||
+                            userData?.image ||
+                            userData?.profileImage ||
+                            '',
+                    });
+                }
+
+                setFriendRequests(requests);
+            }
+        );
+
+        return unsubscribe;
+
     }, [currentUserId]);
 
-    // LOAD FRIEND REQUESTS
-    const loadFriendRequests = async () => {
+    // ==========================
+    // FRIENDS
+    // ==========================
+
+    useEffect(() => {
 
         if (!currentUserId) return;
 
-        try {
+        const q = query(
+            collection(db, 'friendRequests'),
+            where('status', '==', 'accepted')
+        );
 
-            const q = query(
-                collection(db, 'friendRequests'),
-                where('receiverId', '==', currentUserId),
-                where('status', '==', 'pending')
-            );
+        const unsubscribe = onSnapshot(
+            q,
+            async snapshot => {
 
-            const snapshot = await getDocs(q);
+                const uniqueFriends =
+                    new Set();
 
-            const requests: FriendRequest[] = [];
+                const friendList: Friend[] = [];
 
-            for (const requestDoc of snapshot.docs) {
+                for (const item of snapshot.docs) {
 
-                const requestData = requestDoc.data();
-                const senderId = requestData.senderId as string;
+                    const data = item.data();
 
-                if (!senderId) continue;
+                    let friendId = '';
 
-                const userDocRef = doc(db, 'users', senderId);
-                const userSnapshot = await getDoc(userDocRef);
+                    if (
+                        data.senderId ===
+                        currentUserId
+                    ) {
 
-                if (!userSnapshot.exists()) continue;
+                        friendId =
+                            data.receiverId;
 
-                const userData = userSnapshot.data();
+                    } else if (
+                        data.receiverId ===
+                        currentUserId
+                    ) {
 
-                requests.push({
-                    requestId: requestDoc.id,
-                    senderId,
-                    name: (userData?.name as string) || 'No Name',
-                    image: (userData?.image as string) || '',
-                });
-            }
+                        friendId =
+                            data.senderId;
 
-            setFriendRequests(requests);
+                    } else {
+                        continue;
+                    }
 
-        } catch (error) {
-            console.log('REQUEST ERROR:', error);
-        }
-    };
+                    // REMOVE DUPLICATE
 
-    // LOAD FRIENDS
-    const loadFriends = async () => {
+                    if (
+                        uniqueFriends.has(
+                            friendId
+                        )
+                    ) {
+                        continue;
+                    }
 
-        if (!currentUserId) return;
+                    uniqueFriends.add(friendId);
 
-        try {
+                    const userSnap = await getDoc(
+                        doc(
+                            db,
+                            'users',
+                            friendId
+                        )
+                    );
 
-            const q = query(
-                collection(db, 'friendRequests'),
-                where('status', '==', 'accepted')
-            );
+                    if (!userSnap.exists())
+                        continue;
 
-            const snapshot = await getDocs(q);
+                    const userData =
+                        userSnap.data();
 
-            const friendList: Friend[] = [];
+                    friendList.push({
+                        id: friendId,
 
-            for (const friendDoc of snapshot.docs) {
+                        name:
+                            userData?.name ||
+                            userData?.username ||
+                            'No Name',
 
-                const data = friendDoc.data();
-
-                let friendId = '';
-
-                // CHECK FRIEND ID
-                if (data.senderId === currentUserId) {
-
-                    friendId = data.receiverId;
-
-                } else if (data.receiverId === currentUserId) {
-
-                    friendId = data.senderId;
-
-                } else {
-                    continue;
+                        image:
+                            userData?.photoURL ||
+                            userData?.image ||
+                            userData?.profileImage ||
+                            '',
+                    });
                 }
 
-                // GET USER DATA
-                const userDocRef = doc(db, 'users', friendId);
-                const userSnapshot = await getDoc(userDocRef);
-
-                if (!userSnapshot.exists()) continue;
-
-                const userData = userSnapshot.data();
-
-                friendList.push({
-                    id: friendId,
-                    name: (userData?.name as string) || 'No Name',
-                    image: (userData?.image as string) || '',
-                });
+                setFriends(friendList);
             }
+        );
 
-            setFriends(friendList);
+        return unsubscribe;
 
-        } catch (error) {
-            console.log('FRIEND ERROR:', error);
-        }
-    };
+    }, [currentUserId]);
 
+    // ==========================
     // ACCEPT REQUEST
-    const acceptRequest = async (requestId: string) => {
+    // ==========================
+
+    const acceptRequest = async (
+        item: FriendRequest
+    ) => {
 
         try {
 
-            await updateDoc(
-                doc(db, 'friendRequests', requestId),
-                {
-                    status: 'accepted',
-                }
+            const batch =
+                writeBatch(db);
+
+            // UPDATE REQUEST
+
+            const requestRef = doc(
+                db,
+                'friendRequests',
+                item.requestId
             );
 
-            Alert.alert('Success', 'Friend Request Accepted');
+            batch.update(requestRef, {
+                status: 'accepted',
+                updatedAt:
+                    serverTimestamp(),
+            });
 
-            loadFriendRequests();
-            loadFriends();
+            await batch.commit();
 
         } catch (error) {
             console.log(error);
         }
     };
 
-    // DELETE REQUEST
-    const deleteRequest = async (requestId: string) => {
+    // ==========================
+    // REMOVE REQUEST
+    // ==========================
+
+    const removeRequest = async (
+        requestId: string
+    ) => {
 
         try {
 
             await deleteDoc(
-                doc(db, 'friendRequests', requestId)
+                doc(
+                    db,
+                    'friendRequests',
+                    requestId
+                )
             );
-
-            loadFriendRequests();
 
         } catch (error) {
             console.log(error);
         }
     };
 
-    // SEARCH FILTER
-    const filteredFriends = friends.filter(item =>
-        item.name
-            ?.toLowerCase()
-            .includes(search.toLowerCase())
-    );
+    // ==========================
+    // FILTER FRIENDS
+    // ==========================
 
-    // FRIEND REQUEST CARD
-    const renderFriendRequest = ({ item }: any) => (
+    const filteredFriends =
+        friends.filter(item =>
+            item.name
+                ?.toLowerCase()
+                .includes(
+                    search.toLowerCase()
+                )
+        );
+
+    // ==========================
+    // AVATAR
+    // ==========================
+
+    const renderAvatar = (
+        image: string
+    ) => {
+
+        if (image) {
+
+            return (
+                <Image
+                    source={{ uri: image }}
+                    style={
+                        styles.profileImage
+                    }
+                />
+            );
+        }
+
+        return (
+            <View
+                style={styles.dummyAvatar}
+            >
+                <Ionicons
+                    name="person"
+                    size={24}
+                    color="#FFFFFF"
+                />
+            </View>
+        );
+    };
+
+    // ==========================
+    // REQUEST ITEM
+    // ==========================
+
+    const renderFriendRequest = ({
+        item,
+    }: any) => (
 
         <View style={styles.requestCard}>
 
-            <Image
-                source={{
-                    uri:
-                        item.image ||
-                        'https://i.pravatar.cc/300',
-                }}
-                style={styles.requestImage}
-            />
+            {renderAvatar(item.image)}
 
-            <Text style={styles.requestName}>
-                {item.name}
-            </Text>
+            <View style={{ flex: 1 }}>
 
-            <Text style={styles.requestText}>
-                Sent you request
-            </Text>
-
-            <TouchableOpacity
-                style={styles.acceptBtn}
-                onPress={() =>
-                    acceptRequest(item.requestId)
-                }
-            >
-                <Text style={styles.acceptText}>
-                    Accept
+                <Text
+                    style={styles.userName}
+                >
+                    {item.name}
                 </Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() =>
-                    deleteRequest(item.requestId)
-                }
-            >
-                <Text style={styles.deleteText}>
-                    Delete
+                <Text
+                    style={
+                        styles.requestText
+                    }
+                >
+                    Sent you request
                 </Text>
-            </TouchableOpacity>
+
+            </View>
+
+            <View style={styles.buttonRow}>
+
+                <TouchableOpacity
+                    style={
+                        styles.acceptBtn
+                    }
+                    onPress={() =>
+                        acceptRequest(item)
+                    }
+                >
+                    <Text
+                        style={
+                            styles.acceptText
+                        }
+                    >
+                        Accept
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={
+                        styles.removeBtn
+                    }
+                    onPress={() =>
+                        removeRequest(
+                            item.requestId
+                        )
+                    }
+                >
+                    <Text
+                        style={
+                            styles.removeText
+                        }
+                    >
+                        Remove
+                    </Text>
+                </TouchableOpacity>
+
+            </View>
 
         </View>
     );
 
-    // FRIEND CARD
-    const renderFriend = ({ item }: any) => (
+    // ==========================
+    // FRIEND ITEM
+    // ==========================
 
-        <View style={styles.friendCard}>
+    const renderFriend = ({
+        item,
+    }: any) => (
 
-            <View style={styles.friendLeft}>
+        <TouchableOpacity
+            style={styles.friendItem}
+            activeOpacity={0.8}
+        >
 
-                <Image
-                    source={{
-                        uri:
-                            item.image ||
-                            'https://i.pravatar.cc/300',
-                    }}
-                    style={styles.friendImage}
-                />
+            <View
+                style={styles.friendLeft}
+            >
 
-                <View style={{ marginLeft: 12 }}>
+                {renderAvatar(item.image)}
 
-                    <Text style={styles.friendName}>
-                        {item.name}
-                    </Text>
-
-                    <Text style={styles.friendStatus}>
-                        Friend
-                    </Text>
-
-                </View>
+                <Text
+                    style={styles.userName}
+                >
+                    {item.name}
+                </Text>
 
             </View>
 
             <TouchableOpacity
                 style={styles.messageBtn}
                 onPress={() =>
-                    navigation.navigate('Message', {
-                        userName: item.name,
-                        userImage: item.image,
-                        receiverId: item.id,
-                    })
+                    navigation.navigate(
+                        'Message',
+                        {
+                            receiverId: item.id,
+                            name: item.name,
+                            image: item.image,
+                        }
+                    )
                 }
             >
                 <Ionicons
@@ -316,27 +487,31 @@ export default function FriendScreen() {
                 />
             </TouchableOpacity>
 
-        </View>
+        </TouchableOpacity>
     );
 
     return (
 
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView
+            style={styles.container}
+        >
 
-            <StatusBar barStyle="dark-content" />
+            <StatusBar
+                barStyle="dark-content"
+            />
 
             {/* SEARCH */}
+
             <View style={styles.searchBox}>
 
                 <Ionicons
                     name="search-outline"
                     size={20}
-                    color="#6B7280"
-                    style={{ marginRight: 10 }}
+                    color="#9CA3AF"
                 />
 
                 <TextInput
-                    placeholder="Search friends..."
+                    placeholder="Search friends"
                     placeholderTextColor="#9CA3AF"
                     value={search}
                     onChangeText={setSearch}
@@ -349,38 +524,50 @@ export default function FriendScreen() {
                 data={filteredFriends}
                 renderItem={renderFriend}
                 keyExtractor={item => item.id}
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={
+                    false
+                }
+                contentContainerStyle={{
+                    paddingBottom: 120,
+                }}
                 ListHeaderComponent={
                     <>
-                        {/* FRIEND REQUEST */}
-                        <Text style={styles.heading}>
-                            Friend Requests
-                        </Text>
+                        {friendRequests.length >
+                            0 && (
+                                <>
+                                    <Text
+                                        style={
+                                            styles.heading
+                                        }
+                                    >
+                                        Friend Requests
+                                    </Text>
 
-                        <FlatList
-                            horizontal
-                            data={friendRequests}
-                            renderItem={renderFriendRequest}
-                            keyExtractor={item =>
-                                item.requestId
-                            }
-                            showsHorizontalScrollIndicator={
-                                false
-                            }
-                            contentContainerStyle={{
-                                paddingHorizontal: 20,
-                            }}
-                        />
+                                    <FlatList
+                                        data={
+                                            friendRequests
+                                        }
+                                        renderItem={
+                                            renderFriendRequest
+                                        }
+                                        keyExtractor={
+                                            item =>
+                                                item.requestId
+                                        }
+                                        scrollEnabled={
+                                            false
+                                        }
+                                    />
+                                </>
+                            )}
 
-                        {/* FRIEND LIST */}
-                        <Text style={styles.heading}>
-                            Your Friends
+                        <Text
+                            style={styles.heading}
+                        >
+                            Friends
                         </Text>
                     </>
                 }
-                contentContainerStyle={{
-                    paddingBottom: 30,
-                }}
             />
 
         </SafeAreaView>
@@ -391,73 +578,76 @@ const styles = StyleSheet.create({
 
     container: {
         flex: 1,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: '#FFFFFF',
     },
 
     searchBox: {
         height: 54,
-        backgroundColor: '#FFFFFF',
-        marginHorizontal: 20,
-        marginTop: 10,
-        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        marginHorizontal: 16,
         borderRadius: 16,
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         flexDirection: 'row',
         alignItems: 'center',
+        marginTop: 10,
+        marginBottom: 20,
     },
 
     input: {
         flex: 1,
+        marginLeft: 10,
         fontSize: 15,
         color: '#111827',
     },
 
     heading: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: '700',
         color: '#111827',
+        paddingHorizontal: 16,
         marginBottom: 16,
-        paddingHorizontal: 20,
+        marginTop: 6,
     },
 
     requestCard: {
-        width: 170,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 18,
-        padding: 16,
-        marginRight: 14,
+        flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 28,
-    },
-
-    requestImage: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
-        marginBottom: 12,
-    },
-
-    requestName: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#111827',
+        marginHorizontal: 16,
+        paddingBottom: 16,
+        marginBottom: 16,
+        borderBottomWidth: 1,
+        borderColor: '#F1F5F9',
     },
 
     requestText: {
         fontSize: 13,
         color: '#6B7280',
         marginTop: 4,
-        marginBottom: 14,
+    },
+
+    buttonRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
 
     acceptBtn: {
-        width: '100%',
-        height: 40,
         backgroundColor: '#2563EB',
+        paddingHorizontal: 18,
+        height: 40,
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 10,
+        marginRight: 8,
+    },
+
+    removeBtn: {
+        backgroundColor: '#FEE2E2',
+        paddingHorizontal: 18,
+        height: 40,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 
     acceptText: {
@@ -466,30 +656,22 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
 
-    deleteBtn: {
-        width: '100%',
-        height: 40,
-        backgroundColor: '#E5E7EB',
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    deleteText: {
-        color: '#111827',
+    removeText: {
+        color: '#EF4444',
         fontWeight: '700',
         fontSize: 14,
     },
 
-    friendCard: {
-        backgroundColor: '#FFFFFF',
-        marginHorizontal: 20,
-        marginBottom: 12,
-        borderRadius: 18,
-        padding: 14,
+    friendItem: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        justifyContent:
+            'space-between',
+        marginHorizontal: 16,
+        paddingBottom: 16,
+        marginBottom: 16,
+        borderBottomWidth: 1,
+        borderColor: '#F1F5F9',
     },
 
     friendLeft: {
@@ -497,31 +679,35 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
 
-    friendImage: {
-        width: 58,
-        height: 58,
-        borderRadius: 29,
-    },
-
-    friendName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111827',
-    },
-
-    friendStatus: {
-        fontSize: 13,
-        color: '#6B7280',
-        marginTop: 4,
-    },
-
     messageBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#EFF6FF',
+        width: 42,
+        height: 42,
+        borderRadius: 21,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+
+    profileImage: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        marginRight: 14,
+    },
+
+    dummyAvatar: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#5B7FFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 14,
+    },
+
+    userName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111827',
     },
 
 });

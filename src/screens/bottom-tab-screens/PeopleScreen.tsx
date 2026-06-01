@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import {
     View,
@@ -9,6 +9,7 @@ import {
     TouchableOpacity,
     StatusBar,
     TextInput,
+    ActivityIndicator,
     Alert,
 } from 'react-native';
 
@@ -22,184 +23,421 @@ import {
     getDocs,
     query,
     where,
+    deleteDoc,
+    onSnapshot,
+    serverTimestamp,
+    doc,
 } from 'firebase/firestore';
 
 import { auth, db } from '../../services/firebase';
 
 type UserItem = {
     id: string;
-    name?: string;
-    image?: string;
-    isFriendAdded: boolean;
+    name: string;
+    image: string;
+    status: 'none' | 'pending' | 'friend';
+    requestId?: string;
 };
 
 export default function PeopleScreen() {
+    const currentUser = auth.currentUser;
+
+    const currentUserId = currentUser?.uid;
+
     const [search, setSearch] = useState('');
 
     const [users, setUsers] = useState<UserItem[]>([]);
 
-    const currentUser = auth.currentUser;
-    const currentUserId = currentUser?.uid;
+    const [loading, setLoading] = useState(true);
+
+    const [sendingId, setSendingId] =
+        useState<string>('');
+
+    // =========================
+    // REALTIME USERS + REQUESTS
+    // =========================
 
     useEffect(() => {
         if (!currentUserId) return;
-        loadUsers();
+
+        let usersData: UserItem[] = [];
+
+        const unsubscribeUsers = onSnapshot(
+            collection(db, 'users'),
+            snapshot => {
+                const tempUsers: UserItem[] = [];
+
+                snapshot.forEach(document => {
+                    if (document.id !== currentUserId) {
+                        const data = document.data();
+
+                        tempUsers.push({
+                            id: document.id,
+                            name:
+                                data.name ||
+                                data.username ||
+                                'Unknown',
+                            image:
+                                data.image ||
+                                data.photoURL ||
+                                '',
+                            status: 'none',
+                        });
+                    }
+                });
+
+                usersData = tempUsers;
+            }
+        );
+
+        const unsubscribeRequests = onSnapshot(
+            collection(db, 'friendRequests'),
+            snapshot => {
+                const updatedUsers = usersData.map(
+                    user => {
+                        let status:
+                            | 'none'
+                            | 'pending'
+                            | 'friend' = 'none';
+
+                        let requestId = '';
+
+                        snapshot.docs.forEach(docItem => {
+                            const request =
+                                docItem.data();
+
+                            const isCurrentUserRequest =
+                                request.senderId ===
+                                currentUserId &&
+                                request.receiverId ===
+                                user.id;
+
+                            const isFriend =
+                                (request.senderId ===
+                                    currentUserId &&
+                                    request.receiverId ===
+                                    user.id) ||
+                                (request.senderId ===
+                                    user.id &&
+                                    request.receiverId ===
+                                    currentUserId);
+
+                            // PENDING REQUEST
+                            if (
+                                isCurrentUserRequest &&
+                                request.status ===
+                                'pending'
+                            ) {
+                                status = 'pending';
+
+                                requestId = docItem.id;
+                            }
+
+                            // FRIEND
+                            if (
+                                isFriend &&
+                                request.status ===
+                                'accepted'
+                            ) {
+                                status = 'friend';
+
+                                requestId = docItem.id;
+                            }
+                        });
+
+                        return {
+                            ...user,
+                            status,
+                            requestId,
+                        };
+                    }
+                );
+
+                // REMOVE DUPLICATES
+                const uniqueUsers =
+                    updatedUsers.filter(
+                        (item, index, self) =>
+                            index ===
+                            self.findIndex(
+                                t => t.id === item.id
+                            )
+                    );
+
+                setUsers(uniqueUsers);
+
+                setLoading(false);
+            }
+        );
+
+        return () => {
+            unsubscribeUsers();
+
+            unsubscribeRequests();
+        };
     }, [currentUserId]);
 
-    const loadUsers = async () => {
+    // =========================
+    // SEND REQUEST
+    // =========================
+
+    const sendRequest = async (
+        receiverId: string
+    ) => {
         if (!currentUserId) return;
 
         try {
-            const snapshot = await getDocs(
-                collection(db, 'users')
-            );
+            setSendingId(receiverId);
 
-            const userList: UserItem[] = [];
-
-            snapshot.forEach(doc => {
-                if (doc.id !== currentUserId) {
-                    const data = doc.data();
-
-                    userList.push({
-                        id: doc.id,
-                        name: data.name as string | undefined,
-                        image: data.image as string | undefined,
-                        isFriendAdded: false,
-                    });
-                }
-            });
-
-            setUsers(userList);
-        } catch (error) {
-            console.log(error);
-        }
-    };
-
-    const sendFriendRequest = async (receiverId: string) => {
-        if (!currentUserId) {
-            Alert.alert('Error', 'Unable to send request without logged in user');
-            return;
-        }
-
-        try {
-            const q = query(
+            // CHECK REQUEST EXIST
+            const q1 = query(
                 collection(db, 'friendRequests'),
                 where('senderId', '==', currentUserId),
                 where('receiverId', '==', receiverId)
             );
 
-            const existingRequest = await getDocs(q);
+            const q2 = query(
+                collection(db, 'friendRequests'),
+                where('senderId', '==', receiverId),
+                where('receiverId', '==', currentUserId)
+            );
 
-            if (!existingRequest.empty) {
-                Alert.alert('Already Sent', 'Friend request already exists');
+            const [snapshot1, snapshot2] =
+                await Promise.all([
+                    getDocs(q1),
+                    getDocs(q2),
+                ]);
+
+            // PREVENT MULTIPLE REQUEST
+            if (
+                !snapshot1.empty ||
+                !snapshot2.empty
+            ) {
+                setSendingId('');
+
                 return;
             }
 
-            await addDoc(collection(db, 'friendRequests'), {
-                senderId: currentUserId,
-                receiverId,
-                status: 'pending',
-                createdAt: new Date(),
-            });
-
-            const updatedUsers = users.map(user =>
-                user.id === receiverId
-                    ? {
-                          ...user,
-                          isFriendAdded: true,
-                      }
-                    : user
+            await addDoc(
+                collection(db, 'friendRequests'),
+                {
+                    senderId: currentUserId,
+                    receiverId,
+                    status: 'pending',
+                    createdAt: serverTimestamp(),
+                }
             );
-
-            setUsers(updatedUsers);
-
-            Alert.alert('Success', 'Friend request sent');
         } catch (error) {
             console.log(error);
-            Alert.alert('Error', 'Failed to send request');
+
+            Alert.alert(
+                'Error',
+                'Failed to send request'
+            );
+        } finally {
+            setSendingId('');
         }
     };
 
-    const filteredUsers = users.filter(user =>
-        user.name
-            ?.toLowerCase()
-            ?.includes(search.toLowerCase()) ?? false
-    );
+    // =========================
+    // CANCEL REQUEST
+    // =========================
 
-    const renderItem = ({ item }: { item: UserItem }) => {
+    const cancelRequest = async (
+        requestId?: string
+    ) => {
+        if (!requestId) return;
+
+        try {
+            await deleteDoc(
+                doc(
+                    db,
+                    'friendRequests',
+                    requestId
+                )
+            );
+        } catch (error) {
+            console.log(error);
+
+            Alert.alert(
+                'Error',
+                'Failed to cancel request'
+            );
+        }
+    };
+
+    // =========================
+    // FILTER USERS
+    // =========================
+
+    const filteredUsers = useMemo(() => {
+        return users.filter(user =>
+            user.name
+                .toLowerCase()
+                .includes(search.toLowerCase())
+        );
+    }, [search, users]);
+
+    // =========================
+    // PROFILE IMAGE
+    // =========================
+
+    const renderProfileImage = (
+        image?: string
+    ) => {
+        if (image) {
+            return (
+                <Image
+                    source={{ uri: image }}
+                    style={styles.profileImage}
+                />
+            );
+        }
+
         return (
-            <View style={styles.card}>
-                <View style={styles.leftSection}>
-                    <Image
-                        source={{ uri: item.image }}
-                        style={styles.profileImage}
-                    />
-
-                    <View>
-                        <Text style={styles.name}>
-                            {item.name}
-                        </Text>
-
-                        <Text style={styles.subText}>
-                            Suggested Friend
-                        </Text>
-                    </View>
-                </View>
-
-                <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() =>
-                        sendFriendRequest(item.id)
-                    }
-                    disabled={item.isFriendAdded}
-                    style={[
-                        styles.button,
-                        item.isFriendAdded &&
-                        styles.cancelButton,
-                    ]}
-                >
-                    <Text
-                        style={[
-                            styles.buttonText,
-                            item.isFriendAdded &&
-                            styles.cancelButtonText,
-                        ]}
-                    >
-                        {item.isFriendAdded
-                            ? 'Sent'
-                            : 'Add'}
-                    </Text>
-                </TouchableOpacity>
+            <View style={styles.dummyAvatar}>
+                <Ionicons
+                    name="person"
+                    size={22}
+                    color="#FFFFFF"
+                />
             </View>
         );
     };
 
+    // =========================
+    // BUTTON UI
+    // =========================
+
+    const renderButton = (
+        item: UserItem
+    ) => {
+        // FRIEND
+        if (item.status === 'friend') {
+            return (
+                <View style={styles.friendButton}>
+                    <Ionicons
+                        name="checkmark-circle"
+                        size={15}
+                        color="#16A34A"
+                    />
+
+                    <Text style={styles.friendText}>
+                        Friends
+                    </Text>
+                </View>
+            );
+        }
+
+        // PENDING
+        if (item.status === 'pending') {
+            return (
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.cancelButton}
+                    onPress={() =>
+                        cancelRequest(item.requestId)
+                    }
+                >
+                    <Text style={styles.cancelText}>
+                        Cancel
+                    </Text>
+                </TouchableOpacity>
+            );
+        }
+
+        // ADD
+        return (
+            <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.addButton}
+                disabled={sendingId === item.id}
+                onPress={() =>
+                    sendRequest(item.id)
+                }
+            >
+                {sendingId === item.id ? (
+                    <ActivityIndicator
+                        size="small"
+                        color="#FFFFFF"
+                    />
+                ) : (
+                    <>
+                        <Ionicons
+                            name="person-add"
+                            size={15}
+                            color="#FFFFFF"
+                        />
+
+                        <Text style={styles.addText}>
+                            Add
+                        </Text>
+                    </>
+                )}
+            </TouchableOpacity>
+        );
+    };
+
+    // =========================
+    // USER ITEM
+    // =========================
+
+    const renderItem = ({
+        item,
+    }: {
+        item: UserItem;
+    }) => {
+        return (
+            <View style={styles.userRow}>
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.leftSection}
+                >
+                    <View>
+                        {renderProfileImage(
+                            item.image
+                        )}
+
+                        <View style={styles.onlineDot} />
+                    </View>
+
+                    <Text style={styles.name}>
+                        {item.name}
+                    </Text>
+                </TouchableOpacity>
+
+                {renderButton(item)}
+            </View>
+        );
+    };
+
+    // =========================
+    // UI
+    // =========================
+
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView
+            edges={['top']}
+            style={styles.container}
+        >
             <StatusBar
-                backgroundColor="#F4F6F8"
+                backgroundColor="#FFFFFF"
                 barStyle="dark-content"
             />
 
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>
-                    Find Friends
-                </Text>
+            <Text style={styles.headerTitle}>
+                Find Friends
+            </Text>
 
-                <Text style={styles.headerSubtitle}>
-                    Connect with new people
-                </Text>
-            </View>
-
+            {/* SEARCH */}
             <View style={styles.searchContainer}>
                 <Ionicons
                     name="search"
-                    size={20}
+                    size={18}
                     color="#9CA3AF"
                 />
 
                 <TextInput
-                    placeholder="Search friends..."
+                    placeholder="Search..."
                     placeholderTextColor="#9CA3AF"
                     value={search}
                     onChangeText={setSearch}
@@ -207,15 +445,26 @@ export default function PeopleScreen() {
                 />
             </View>
 
-            <FlatList
-                data={filteredUsers}
-                keyExtractor={item => item.id}
-                renderItem={renderItem}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={
-                    styles.listContainer
-                }
-            />
+            {loading ? (
+                <View style={styles.loaderContainer}>
+                    <ActivityIndicator
+                        size="large"
+                        color="#6487E8"
+                    />
+                </View>
+            ) : (
+                <FlatList
+                    data={filteredUsers}
+                    keyExtractor={item => item.id}
+                    renderItem={renderItem}
+                    showsVerticalScrollIndicator={
+                        false
+                    }
+                    contentContainerStyle={{
+                        paddingBottom: 120,
+                    }}
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -223,58 +472,43 @@ export default function PeopleScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F4F6F8',
-    },
-
-    header: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
-        paddingBottom: 10,
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
     },
 
     headerTitle: {
-        fontSize: 28,
-        fontWeight: '700',
+        fontSize: 30,
+        fontWeight: '800',
         color: '#111827',
-    },
-
-    headerSubtitle: {
-        marginTop: 4,
-        fontSize: 15,
-        color: '#6B7280',
+        marginTop: 10,
+        marginBottom: 18,
     },
 
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        marginHorizontal: 16,
-        marginBottom: 14,
+        backgroundColor: '#F3F4F6',
+        height: 48,
+        borderRadius: 14,
         paddingHorizontal: 14,
-        height: 52,
-        borderRadius: 16,
+        marginBottom: 18,
     },
 
     searchInput: {
         flex: 1,
-        marginLeft: 10,
-        fontSize: 15,
+        marginLeft: 8,
+        fontSize: 14,
         color: '#111827',
     },
 
-    listContainer: {
-        paddingHorizontal: 16,
-        paddingBottom: 20,
-    },
-
-    card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 18,
-        padding: 14,
-        marginBottom: 14,
+    userRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        justifyContent:
+            'space-between',
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEF2F7',
     },
 
     leftSection: {
@@ -284,44 +518,94 @@ const styles = StyleSheet.create({
     },
 
     profileImage: {
-        width: 58,
-        height: 58,
-        borderRadius: 29,
-        marginRight: 14,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+    },
+
+    dummyAvatar: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#6487E8',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
+    onlineDot: {
+        width: 13,
+        height: 13,
+        borderRadius: 7,
+        backgroundColor: '#22C55E',
+        position: 'absolute',
+        bottom: 1,
+        right: 1,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
     },
 
     name: {
-        fontSize: 16,
+        marginLeft: 14,
+        fontSize: 17,
         fontWeight: '700',
         color: '#111827',
     },
 
-    subText: {
-        marginTop: 4,
-        fontSize: 13,
-        color: '#6B7280',
+    addButton: {
+        height: 38,
+        minWidth: 92,
+        borderRadius: 12,
+        backgroundColor: '#6487E8',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 14,
     },
 
-    button: {
-        backgroundColor: '#2563EB',
-        paddingVertical: 9,
-        paddingHorizontal: 18,
-        borderRadius: 12,
-        minWidth: 90,
-        alignItems: 'center',
+    addText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
+        marginLeft: 5,
     },
 
     cancelButton: {
-        backgroundColor: '#DBEAFE',
+        height: 38,
+        minWidth: 92,
+        borderRadius: 12,
+        backgroundColor: '#FEE2E2',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 14,
     },
 
-    buttonText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
+    cancelText: {
+        color: '#EF4444',
         fontSize: 14,
+        fontWeight: '700',
     },
 
-    cancelButtonText: {
-        color: '#2563EB',
+    friendButton: {
+        height: 38,
+        minWidth: 100,
+        borderRadius: 12,
+        backgroundColor: '#DCFCE7',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 14,
+    },
+
+    friendText: {
+        color: '#16A34A',
+        fontSize: 14,
+        fontWeight: '700',
+        marginLeft: 5,
+    },
+
+    loaderContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

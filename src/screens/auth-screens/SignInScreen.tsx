@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-
+import { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -10,31 +9,91 @@ import {
     Platform,
     Alert,
 } from 'react-native';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import {
-    signInWithEmailAndPassword,
-} from 'firebase/auth';
-
+import { signInWithEmailAndPassword, } from 'firebase/auth';
 import { auth } from '../../services/firebase';
-
 import CustomInput from '../../components/auth/CustomInput';
 import PasswordInput from '../../components/auth/PasswordInput';
 import PrimaryButton from '../../components/auth/PrimaryButton';
 import SocialButton from '../../components/auth/SocialButton';
 import AuthTabs from '../../components/auth/AuthTabs';
 
-export default function SignInScreen({
-    navigation,
-}: any) {
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleAuthProvider, signInWithCredential, } from 'firebase/auth';
+import { doc, setDoc, } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+
+
+export default function SignInScreen({ navigation, }: any) {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const handleLogin = async () => {
+    useEffect(() => {
+        GoogleSignin.configure({
+            webClientId:
+                '526096036250-o03nen0lu21sd7cjbalk4oecomqvev3o.apps.googleusercontent.com',
+        });
+    }, []);
 
+    const handleGoogleSignIn = async () => {
+
+        try {
+
+            await GoogleSignin.hasPlayServices();
+
+            await GoogleSignin.signOut();
+
+            const userInfo =
+                await GoogleSignin.signIn();
+
+            const idToken =
+                userInfo.data?.idToken;
+
+            if (!idToken) {
+                throw new Error('No ID token');
+            }
+
+            const googleCredential =
+                GoogleAuthProvider.credential(
+                    idToken
+                );
+
+            const userCredential =
+                await signInWithCredential(
+                    auth,
+                    googleCredential
+                );
+
+            const user =
+                userCredential.user;
+
+            // SAVE USER DATA IN FIRESTORE
+            await setDoc(
+                doc(db, 'users', user.uid),
+                {
+                    uid: user.uid,
+                    name: user.displayName,
+                    email: user.email,
+                    photoURL: user.photoURL,
+                    createdAt: new Date(),
+                },
+                { merge: true }
+            );
+
+            console.log(
+                'Google Sign-In Success'
+            );
+
+        } catch (error) {
+
+            console.log(error);
+        }
+    };
+
+
+    const handleLogin = async () => {
         if (!email || !password) {
             Alert.alert(
                 'Error',
@@ -42,30 +101,20 @@ export default function SignInScreen({
             );
             return;
         }
-
         try {
-
             setLoading(true);
-
             await signInWithEmailAndPassword(
                 auth,
                 email,
                 password
             );
-
             setLoading(false);
-
             Alert.alert(
                 'Success',
                 'Login successful'
             );
-
-            navigation.replace('MainTabs');
-
         } catch (error: any) {
-
             setLoading(false);
-
             Alert.alert(
                 'Login Error',
                 error.message
@@ -73,16 +122,11 @@ export default function SignInScreen({
         }
     };
 
-    return (
-        <SafeAreaView
-            edges={['top']}
-            style={styles.container}
-        >
 
-            <StatusBar
-                barStyle="dark-content"
-                backgroundColor="#FAFAFA"
-            />
+
+    return (
+        <SafeAreaView edges={['top']} style={styles.container} >
+            <StatusBar barStyle="dark-content" backgroundColor="#FAFAFA" />
 
             <KeyboardAvoidingView
                 behavior={
@@ -147,35 +191,25 @@ export default function SignInScreen({
 
                     {/* Divider */}
                     <View style={styles.dividerContainer}>
-
                         <View style={styles.divider} />
-
                         <Text style={styles.orText}>
                             Or
                         </Text>
-
                         <View style={styles.divider} />
-
                     </View>
 
                     {/* Social Buttons */}
                     <SocialButton
-                        icon={require('../../assets/img/apple.png')}
-                        title="Login with Apple"
-                    />
-
-                    <SocialButton
                         icon={require('../../assets/img/google.png')}
                         title="Login with Google"
+                        onPress={handleGoogleSignIn}
                     />
 
                     {/* Bottom */}
                     <View style={styles.bottomContainer}>
-
                         <Text style={styles.bottomText}>
                             Don’t have an account?
                         </Text>
-
                         <TouchableOpacity
                             onPress={() =>
                                 navigation.navigate('SignUp')
@@ -185,13 +219,10 @@ export default function SignInScreen({
                                 {' '}Sign up
                             </Text>
                         </TouchableOpacity>
-
                     </View>
 
                 </View>
-
             </KeyboardAvoidingView>
-
         </SafeAreaView>
     );
 }

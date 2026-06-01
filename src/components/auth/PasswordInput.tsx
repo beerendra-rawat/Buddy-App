@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
-
+import { useState } from 'react';
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
     StyleSheet,
-    Image,
 } from 'react-native';
+import { Ionicons, } from '@expo/vector-icons';
 
 type Props = {
     label: string;
@@ -15,43 +14,38 @@ type Props = {
     onChangeText: (text: string) => void;
 };
 
-export default function PasswordInput({
-    label,
-    value,
-    onChangeText,
-}: Props) {
-
+export default function PasswordInput({ label, value, onChangeText, }: Props) {
     const [secure, setSecure] = useState(true);
-
     return (
         <View style={styles.container}>
-
             <Text style={styles.label}>
                 {label}
             </Text>
 
-            <View style={styles.wrapper}>
-
+            <View style={styles.inputContainer}>
                 <TextInput
                     value={value}
                     onChangeText={onChangeText}
                     secureTextEntry={secure}
-                    placeholder="••••••••"
-                    placeholderTextColor="#A0A4AB"
+                    placeholder="Enter password"
+                    placeholderTextColor="#999"
                     style={styles.input}
                 />
-
                 <TouchableOpacity
                     onPress={() => setSecure(!secure)}
                 >
-                    <Image
-                        source={require('../../assets/img/eye.png')}
-                        style={styles.eye}
+                    <Ionicons
+                        name={
+                            secure
+                                ? 'eye-off'
+                                : 'eye'
+                        }
+                        size={24}
+                        color="#777"
                     />
                 </TouchableOpacity>
 
             </View>
-
         </View>
     );
 }
@@ -59,40 +53,32 @@ export default function PasswordInput({
 const styles = StyleSheet.create({
 
     container: {
-        marginBottom: 20,
+        marginTop: 14,
     },
 
     label: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#1F2937',
-        marginBottom: 10,
+        fontSize: 14,
+        marginBottom: 8,
+        fontWeight: '600',
+        color: '#333',
     },
 
-    wrapper: {
+    inputContainer: {
+        height: 56,
+        borderWidth: 1,
+        borderColor: '#DDD',
+        borderRadius: 14,
+        paddingHorizontal: 14,
         flexDirection: 'row',
         alignItems: 'center',
-
-        backgroundColor: '#FFFFFF',
-
-        borderWidth: 1.5,
-        borderColor: '#E5E7EB',
-
-        borderRadius: 18,
-
-        paddingHorizontal: 18,
+        justifyContent: 'space-between',
+        backgroundColor: '#FFF',
     },
 
     input: {
         flex: 1,
-        paddingVertical: 18,
         fontSize: 15,
-    },
-
-    eye: {
-        width: 22,
-        height: 22,
-        tintColor: '#C7C7C7',
+        color: '#111',
     },
 
 });
