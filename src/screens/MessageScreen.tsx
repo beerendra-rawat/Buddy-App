@@ -19,11 +19,9 @@ import {
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
-import {
-    Ionicons,
-    MaterialIcons,
-} from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -45,15 +43,8 @@ import {
 } from 'firebase/firestore';
 
 import {
-    ref,
-    uploadBytes,
-    getDownloadURL,
-} from 'firebase/storage';
-
-import {
     auth,
     db,
-    storage,
 } from '../services/firebase';
 
 import BackButton from '../components/auth/BackButton';
@@ -67,27 +58,57 @@ type MessageItem = {
     createdAt?: any;
 };
 
-type UserData = {
-    name?: string;
-    image?: string;
+type RouteParams = {
+    receiverId: string;
 };
+
+const DummyAvatar = ({
+    size = 50,
+}: {
+    size?: number;
+}) => (
+
+    <View
+        style={[
+            styles.dummyAvatar,
+            {
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+            },
+        ]}
+    >
+
+        <Ionicons
+            name="person"
+            size={size * 0.5}
+            color="#FFFFFF"
+        />
+
+    </View>
+);
 
 export default function MessageScreen() {
 
-    const navigation = useNavigation<any>();
+    const navigation = useNavigation();
 
-    const route = useRoute<any>();
+    const route = useRoute();
 
-    const flatListRef =
-        useRef<FlatList<MessageItem>>(null);
-
-    const receiverId =
-        route.params?.receiverId || '';
-
-    const currentUser = auth.currentUser;
+    const { receiverId } =
+        route.params as RouteParams;
 
     const currentUserId =
-        currentUser?.uid || '';
+        auth.currentUser?.uid || '';
+
+    const chatId = [
+        currentUserId,
+        receiverId,
+    ]
+        .sort()
+        .join('_');
+
+    const flatListRef =
+        useRef<FlatList>(null);
 
     const [message, setMessage] =
         useState('');
@@ -104,33 +125,25 @@ export default function MessageScreen() {
     const [uploading, setUploading] =
         useState(false);
 
-    const chatId =
-        currentUserId && receiverId
-            ? [currentUserId, receiverId]
-                .sort()
-                .join('_')
-            : null;
+    const [selectedImage, setSelectedImage] =
+        useState<string | null>(null);
 
     // GET USER DATA
     useEffect(() => {
+
+        if (!receiverId) return;
 
         const getUserData = async () => {
 
             try {
 
-                const userRef = doc(
-                    db,
-                    'users',
-                    receiverId
+                const userSnap = await getDoc(
+                    doc(db, 'users', receiverId)
                 );
-
-                const userSnap =
-                    await getDoc(userRef);
 
                 if (userSnap.exists()) {
 
-                    const data =
-                        userSnap.data() as UserData;
+                    const data = userSnap.data();
 
                     setUserName(
                         data?.name || 'User'
@@ -142,20 +155,20 @@ export default function MessageScreen() {
                 }
 
             } catch (error) {
-                console.log(error);
+
+                console.log(
+                    'Get User Error:',
+                    error
+                );
             }
         };
 
-        if (receiverId) {
-            getUserData();
-        }
+        getUserData();
 
     }, [receiverId]);
 
     // GET MESSAGES
     useEffect(() => {
-
-        if (!chatId) return;
 
         const q = query(
             collection(
@@ -167,12 +180,11 @@ export default function MessageScreen() {
             orderBy('createdAt', 'asc')
         );
 
-        const unsubscribe = onSnapshot(
-            q,
-            snapshot => {
+        const unsubscribe =
+            onSnapshot(q, (snapshot) => {
 
                 const allMessages =
-                    snapshot.docs.map(doc => ({
+                    snapshot.docs.map((doc) => ({
                         id: doc.id,
                         ...doc.data(),
                     })) as MessageItem[];
@@ -186,32 +198,93 @@ export default function MessageScreen() {
                     });
 
                 }, 200);
-            }
-        );
+            });
 
         return unsubscribe;
 
-    }, [chatId]);
+    }, []);
+
+    // CLOUDINARY IMAGE UPLOAD
+    const uploadImageToCloudinary = async (
+        imageUri: string
+    ) => {
+
+        try {
+
+            const base64 =
+                await FileSystem.readAsStringAsync(
+                    imageUri,
+                    {
+                        encoding:
+                            FileSystem.EncodingType.Base64,
+                    }
+                );
+
+            const base64Img =
+                `data:image/jpeg;base64,${base64}`;
+
+            const response = await fetch(
+                'https://api.cloudinary.com/v1_1/dbtjsq1pm/image/upload',
+                {
+                    method: 'POST',
+
+                    headers: {
+                        'Content-Type':
+                            'application/json',
+                    },
+
+                    body: JSON.stringify({
+                        file: base64Img,
+                        upload_preset:
+                            'buddychat',
+                    }),
+                }
+            );
+
+            const data =
+                await response.json();
+
+            if (data.secure_url) {
+
+                return data.secure_url;
+            }
+
+            throw new Error(
+                data?.error?.message ||
+                'Upload failed'
+            );
+
+        } catch (error) {
+
+            console.log(
+                'Cloudinary Upload Error:',
+                error
+            );
+
+            throw error;
+        }
+    };
 
     // SEND TEXT MESSAGE
     const sendMessage = async () => {
 
-        try {
+        if (!message.trim()) return;
 
-            if (!message.trim()) return;
+        try {
 
             const newMessage =
                 message.trim();
 
             await setDoc(
-                doc(db, 'chats', chatId!),
+                doc(db, 'chats', chatId),
                 {
                     users: [
                         currentUserId,
                         receiverId,
                     ],
 
-                    lastMessage: newMessage,
+                    lastMessage:
+                        newMessage,
 
                     lastMessageTime:
                         serverTimestamp(),
@@ -223,7 +296,7 @@ export default function MessageScreen() {
                 collection(
                     db,
                     'chats',
-                    chatId!,
+                    chatId,
                     'messages'
                 ),
                 {
@@ -243,7 +316,10 @@ export default function MessageScreen() {
 
         } catch (error) {
 
-            console.log(error);
+            console.log(
+                'Send Message Error:',
+                error
+            );
 
             Alert.alert(
                 'Error',
@@ -251,35 +327,6 @@ export default function MessageScreen() {
             );
         }
     };
-
-    // UPLOAD IMAGE TO FIREBASE STORAGE
-    const uploadImageToFirebase =
-        async (uri: string) => {
-
-            const response =
-                await fetch(uri);
-
-            const blob =
-                await response.blob();
-
-            const fileName =
-                `chatImages/${Date.now()}`;
-
-            const storageRef =
-                ref(storage, fileName);
-
-            await uploadBytes(
-                storageRef,
-                blob
-            );
-
-            const downloadURL =
-                await getDownloadURL(
-                    storageRef
-                );
-
-            return downloadURL;
-        };
 
     // PICK IMAGE
     const pickImage = async () => {
@@ -296,38 +343,65 @@ export default function MessageScreen() {
 
                 Alert.alert(
                     'Permission Required',
-                    'Please allow gallery access'
+                    'Please allow gallery permission.'
                 );
 
                 return;
             }
 
             const result =
-                await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes:
-                        ImagePicker.MediaTypeOptions.Images,
+                await ImagePicker.launchImageLibraryAsync(
+                    {
+                        mediaTypes:
+                            ImagePicker.MediaTypeOptions.Images,
 
-                    allowsEditing: true,
+                        allowsEditing:
+                            true,
 
-                    quality: 0.7,
-                });
+                        aspect: [4, 4],
 
-            if (!result.canceled) {
+                        quality: 0.7,
+                    }
+                );
+
+            if (result.canceled)
+                return;
+
+            setSelectedImage(
+                result.assets[0].uri
+            );
+
+        } catch (error) {
+
+            console.log(
+                'Pick Image Error:',
+                error
+            );
+        }
+    };
+
+    // SEND IMAGE
+    const sendImageMessage =
+        async () => {
+
+            if (!selectedImage)
+                return;
+
+            try {
 
                 setUploading(true);
 
-                const imageUri =
-                    result.assets[0].uri;
-
-                // UPLOAD IMAGE
                 const imageUrl =
-                    await uploadImageToFirebase(
-                        imageUri
+                    await uploadImageToCloudinary(
+                        selectedImage
                     );
 
-                // SAVE MESSAGE
                 await setDoc(
-                    doc(db, 'chats', chatId!),
+                    doc(
+                        db,
+                        'chats',
+                        chatId
+                    ),
                     {
                         users: [
                             currentUserId,
@@ -347,7 +421,7 @@ export default function MessageScreen() {
                     collection(
                         db,
                         'chats',
-                        chatId!,
+                        chatId,
                         'messages'
                     ),
                     {
@@ -363,45 +437,25 @@ export default function MessageScreen() {
                     }
                 );
 
+                setSelectedImage(null);
+
+            } catch (error) {
+
+                console.log(
+                    'Image Upload Error:',
+                    error
+                );
+
+                Alert.alert(
+                    'Error',
+                    'Image not sent'
+                );
+
+            } finally {
+
                 setUploading(false);
             }
-
-        } catch (error) {
-
-            console.log(error);
-
-            setUploading(false);
-
-            Alert.alert(
-                'Error',
-                'Image not uploaded'
-            );
-        }
-    };
-
-    // DUMMY AVATAR
-    const DummyAvatar = ({
-        size = 50,
-    }: {
-        size?: number;
-    }) => (
-        <View
-            style={[
-                styles.dummyAvatar,
-                {
-                    width: size,
-                    height: size,
-                    borderRadius: size / 2,
-                },
-            ]}
-        >
-            <Ionicons
-                name="person"
-                size={size * 0.5}
-                color="#FFFFFF"
-            />
-        </View>
-    );
+        };
 
     // RENDER MESSAGE
     const renderMessage = ({
@@ -411,9 +465,11 @@ export default function MessageScreen() {
     }) => {
 
         const isMe =
-            item.senderId === currentUserId;
+            item.senderId ===
+            currentUserId;
 
         return (
+
             <View
                 style={[
                     styles.messageWrapper,
@@ -424,29 +480,26 @@ export default function MessageScreen() {
                 ]}
             >
 
-                {!isMe && (
-                    <>
-                        {userImage ? (
-                            <Image
-                                source={{
-                                    uri: userImage,
-                                }}
-                                style={
-                                    styles.messageAvatar
-                                }
-                            />
-                        ) : (
-                            <DummyAvatar
-                                size={40}
-                            />
-                        )}
-                    </>
-                )}
+                {!isMe &&
+                    (userImage ? (
+                        <Image
+                            source={{
+                                uri: userImage,
+                            }}
+                            style={
+                                styles.messageAvatar
+                            }
+                        />
+                    ) : (
+                        <DummyAvatar
+                            size={40}
+                        />
+                    ))}
 
                 <View
-                    style={{
-                        maxWidth: '78%',
-                    }}
+                    style={
+                        styles.messageContent
+                    }
                 >
 
                     {!isMe && (
@@ -469,23 +522,23 @@ export default function MessageScreen() {
                         ]}
                     >
 
-                        {item.text ? (
+                        {item.text && (
                             <Text
                                 style={[
                                     styles.messageText,
-
                                     {
-                                        color: isMe
-                                            ? '#fff'
-                                            : '#111',
+                                        color:
+                                            isMe
+                                                ? '#FFF'
+                                                : '#111',
                                     },
                                 ]}
                             >
                                 {item.text}
                             </Text>
-                        ) : null}
+                        )}
 
-                        {item.image ? (
+                        {item.image && (
                             <Image
                                 source={{
                                     uri: item.image,
@@ -494,7 +547,7 @@ export default function MessageScreen() {
                                     styles.chatImage
                                 }
                             />
-                        ) : null}
+                        )}
 
                     </View>
 
@@ -508,20 +561,26 @@ export default function MessageScreen() {
 
         <SafeAreaView
             style={styles.container}
-            edges={['top', 'bottom']}
+            edges={[
+                'top',
+                'bottom',
+            ]}
         >
 
             <KeyboardAvoidingView
-                style={{ flex: 1 }}
+                style={styles.flex}
                 behavior={
-                    Platform.OS === 'ios'
+                    Platform.OS ===
+                        'ios'
                         ? 'padding'
                         : undefined
                 }
             >
 
                 {/* HEADER */}
-                <View style={styles.header}>
+                <View
+                    style={styles.header}
+                >
 
                     <BackButton
                         onPress={() =>
@@ -551,9 +610,9 @@ export default function MessageScreen() {
                         )}
 
                         <View
-                            style={{
-                                marginLeft: 12,
-                            }}
+                            style={
+                                styles.headerInfo
+                            }
                         >
 
                             <Text
@@ -582,26 +641,69 @@ export default function MessageScreen() {
                 <FlatList
                     ref={flatListRef}
                     data={messages}
-                    keyExtractor={item =>
-                        item.id
+                    keyExtractor={(
+                        item
+                    ) => item.id}
+                    renderItem={
+                        renderMessage
                     }
-                    renderItem={renderMessage}
                     showsVerticalScrollIndicator={
                         false
                     }
-                    contentContainerStyle={{
-                        paddingTop: 20,
-                        paddingBottom: 10,
-                    }}
+                    contentContainerStyle={
+                        styles.chatContainer
+                    }
                 />
 
-                {/* LOADING */}
+                {/* IMAGE PREVIEW */}
+                {selectedImage && (
+
+                    <View
+                        style={
+                            styles.previewContainer
+                        }
+                    >
+
+                        <Image
+                            source={{
+                                uri: selectedImage,
+                            }}
+                            style={
+                                styles.previewImage
+                            }
+                        />
+
+                        <TouchableOpacity
+                            style={
+                                styles.closePreview
+                            }
+                            onPress={() =>
+                                setSelectedImage(
+                                    null
+                                )
+                            }
+                        >
+
+                            <Ionicons
+                                name="close"
+                                size={20}
+                                color="#FFF"
+                            />
+
+                        </TouchableOpacity>
+
+                    </View>
+                )}
+
+                {/* UPLOADING */}
                 {uploading && (
+
                     <View
                         style={
                             styles.uploadingContainer
                         }
                     >
+
                         <ActivityIndicator
                             size="small"
                             color="#6487E8"
@@ -614,6 +716,7 @@ export default function MessageScreen() {
                         >
                             Uploading image...
                         </Text>
+
                     </View>
                 )}
 
@@ -627,11 +730,13 @@ export default function MessageScreen() {
                     <TouchableOpacity
                         onPress={pickImage}
                     >
+
                         <Ionicons
                             name="image"
                             size={24}
                             color="#555"
                         />
+
                     </TouchableOpacity>
 
                     <View
@@ -645,17 +750,11 @@ export default function MessageScreen() {
                             onChangeText={
                                 setMessage
                             }
-                            style={styles.input}
+                            style={
+                                styles.input
+                            }
                             multiline
                         />
-
-                        <TouchableOpacity>
-                            <MaterialIcons
-                                name="emoji-emotions"
-                                size={22}
-                                color="#777"
-                            />
-                        </TouchableOpacity>
 
                     </View>
 
@@ -663,14 +762,29 @@ export default function MessageScreen() {
                         style={
                             styles.sendButton
                         }
-                        onPress={sendMessage}
+                        onPress={
+                            selectedImage
+                                ? sendImageMessage
+                                : sendMessage
+                        }
                     >
 
-                        <Ionicons
-                            name="send"
-                            size={20}
-                            color="#fff"
-                        />
+                        {uploading ? (
+
+                            <ActivityIndicator
+                                size="small"
+                                color="#FFF"
+                            />
+
+                        ) : (
+
+                            <Ionicons
+                                name="send"
+                                size={20}
+                                color="#FFF"
+                            />
+
+                        )}
 
                     </TouchableOpacity>
 
@@ -684,9 +798,14 @@ export default function MessageScreen() {
 
 const styles = StyleSheet.create({
 
+    flex: {
+        flex: 1,
+    },
+
     container: {
         flex: 1,
-        backgroundColor: '#F7F8FA',
+        backgroundColor:
+            '#F7F8FA',
     },
 
     header: {
@@ -694,9 +813,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 14,
-        backgroundColor: '#fff',
+        backgroundColor: '#FFF',
         borderBottomWidth: 1,
-        borderBottomColor: '#F1F1F1',
+        borderBottomColor:
+            '#F1F1F1',
     },
 
     profileSection: {
@@ -713,9 +833,14 @@ const styles = StyleSheet.create({
     },
 
     dummyAvatar: {
-        backgroundColor: '#6487E8',
+        backgroundColor:
+            '#6487E8',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+
+    headerInfo: {
+        marginLeft: 12,
     },
 
     headerName: {
@@ -730,6 +855,11 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
 
+    chatContainer: {
+        paddingTop: 20,
+        paddingBottom: 10,
+    },
+
     messageWrapper: {
         paddingHorizontal: 16,
         marginBottom: 18,
@@ -738,11 +868,17 @@ const styles = StyleSheet.create({
     },
 
     myWrapper: {
-        justifyContent: 'flex-end',
+        justifyContent:
+            'flex-end',
     },
 
     otherWrapper: {
-        justifyContent: 'flex-start',
+        justifyContent:
+            'flex-start',
+    },
+
+    messageContent: {
+        maxWidth: '78%',
     },
 
     messageAvatar: {
@@ -766,12 +902,13 @@ const styles = StyleSheet.create({
     },
 
     myMessage: {
-        backgroundColor: '#6487E8',
+        backgroundColor:
+            '#6487E8',
         borderBottomRightRadius: 6,
     },
 
     otherMessage: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#FFF',
         borderBottomLeftRadius: 6,
     },
 
@@ -787,12 +924,37 @@ const styles = StyleSheet.create({
         marginTop: 6,
     },
 
+    previewContainer: {
+        marginLeft: 16,
+        marginBottom: 10,
+        position: 'relative',
+    },
+
+    previewImage: {
+        width: 120,
+        height: 120,
+        borderRadius: 16,
+    },
+
+    closePreview: {
+        position: 'absolute',
+        top: -8,
+        right: -8,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor:
+            '#000',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 14,
         paddingVertical: 12,
-        backgroundColor: '#fff',
+        backgroundColor: '#FFF',
         borderTopWidth: 1,
         borderTopColor: '#EEE',
     },
@@ -800,16 +962,15 @@ const styles = StyleSheet.create({
     inputBox: {
         flex: 1,
         minHeight: 50,
-        backgroundColor: '#F2F3F5',
+        backgroundColor:
+            '#F2F3F5',
         borderRadius: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
+        justifyContent: 'center',
         paddingHorizontal: 14,
         marginHorizontal: 12,
     },
 
     input: {
-        flex: 1,
         fontSize: 16,
         color: '#111',
         paddingVertical: 10,
@@ -819,7 +980,8 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#6487E8',
+        backgroundColor:
+            '#6487E8',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -836,5 +998,4 @@ const styles = StyleSheet.create({
         color: '#555',
         fontSize: 14,
     },
-
 });
