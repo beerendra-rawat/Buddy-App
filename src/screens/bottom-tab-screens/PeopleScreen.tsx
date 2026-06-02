@@ -1,21 +1,22 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+    useEffect,
+    useMemo,
+    useState,
+} from 'react';
 
 import {
     View,
     Text,
     StyleSheet,
     FlatList,
-    Image,
     TouchableOpacity,
-    StatusBar,
-    TextInput,
     ActivityIndicator,
     Alert,
 } from 'react-native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { Ionicons } from '@expo/vector-icons';
+import {
+    Ionicons,
+} from '@expo/vector-icons';
 
 import {
     collection,
@@ -29,7 +30,29 @@ import {
     doc,
 } from 'firebase/firestore';
 
-import { auth, db } from '../../services/firebase';
+import {
+    auth,
+    db,
+} from '../../services/firebase';
+
+import AppContainer from
+    '../../components/common/AppContainer';
+
+import AppInput from
+    '../../components/common/AppInput';
+
+import AppButton from
+    '../../components/common/AppButton';
+
+import UserAvatar from
+    '../../components/common/UserAvatar';
+
+import SkeletonLoader from
+    '../../components/common/SkeletonLoader';
+
+import {
+    COLORS,
+} from '../../constants/colors';
 
 type UserItem = {
     id: string;
@@ -40,340 +63,474 @@ type UserItem = {
 };
 
 export default function PeopleScreen() {
-    const currentUser = auth.currentUser;
 
-    const currentUserId = currentUser?.uid;
+    const currentUser =
+        auth.currentUser;
 
-    const [search, setSearch] = useState('');
+    const currentUserId =
+        currentUser?.uid;
 
-    const [users, setUsers] = useState<UserItem[]>([]);
+    const [search, setSearch] =
+        useState('');
 
-    const [loading, setLoading] = useState(true);
+    const [users, setUsers] =
+        useState<UserItem[]>([]);
+
+    const [loading, setLoading] =
+        useState(true);
 
     const [sendingId, setSendingId] =
         useState<string>('');
 
     // =========================
-    // REALTIME USERS + REQUESTS
+    // REALTIME USERS
     // =========================
 
     useEffect(() => {
-        if (!currentUserId) return;
 
-        let usersData: UserItem[] = [];
+        if (!currentUserId) {
+            return;
+        }
 
-        const unsubscribeUsers = onSnapshot(
-            collection(db, 'users'),
-            snapshot => {
-                const tempUsers: UserItem[] = [];
+        let usersData:
+            UserItem[] = [];
 
-                snapshot.forEach(document => {
-                    if (document.id !== currentUserId) {
-                        const data = document.data();
+        const unsubscribeUsers =
+            onSnapshot(
+                collection(
+                    db,
+                    'users'
+                ),
+                snapshot => {
 
-                        tempUsers.push({
-                            id: document.id,
-                            name:
-                                data.name ||
-                                data.username ||
-                                'Unknown',
-                            image:
-                                data.image ||
-                                data.photoURL ||
-                                '',
-                            status: 'none',
-                        });
-                    }
-                });
+                    const tempUsers:
+                        UserItem[] = [];
 
-                usersData = tempUsers;
-            }
-        );
+                    snapshot.forEach(
+                        document => {
 
-        const unsubscribeRequests = onSnapshot(
-            collection(db, 'friendRequests'),
-            snapshot => {
-                const updatedUsers = usersData.map(
-                    user => {
-                        let status:
-                            | 'none'
-                            | 'pending'
-                            | 'friend' = 'none';
-
-                        let requestId = '';
-
-                        snapshot.docs.forEach(docItem => {
-                            const request =
-                                docItem.data();
-
-                            const isCurrentUserRequest =
-                                request.senderId ===
-                                currentUserId &&
-                                request.receiverId ===
-                                user.id;
-
-                            const isFriend =
-                                (request.senderId ===
-                                    currentUserId &&
-                                    request.receiverId ===
-                                    user.id) ||
-                                (request.senderId ===
-                                    user.id &&
-                                    request.receiverId ===
-                                    currentUserId);
-
-                            // PENDING REQUEST
                             if (
-                                isCurrentUserRequest &&
-                                request.status ===
-                                'pending'
+                                document.id !==
+                                currentUserId
                             ) {
-                                status = 'pending';
 
-                                requestId = docItem.id;
+                                const data =
+                                    document.data();
+
+                                tempUsers.push({
+                                    id:
+                                        document.id,
+
+                                    name:
+                                        data.name ||
+                                        data.username ||
+                                        'Unknown',
+
+                                    image:
+                                        data.image ||
+                                        data.photoURL ||
+                                        '',
+
+                                    status:
+                                        'none',
+                                });
                             }
-
-                            // FRIEND
-                            if (
-                                isFriend &&
-                                request.status ===
-                                'accepted'
-                            ) {
-                                status = 'friend';
-
-                                requestId = docItem.id;
-                            }
-                        });
-
-                        return {
-                            ...user,
-                            status,
-                            requestId,
-                        };
-                    }
-                );
-
-                // REMOVE DUPLICATES
-                const uniqueUsers =
-                    updatedUsers.filter(
-                        (item, index, self) =>
-                            index ===
-                            self.findIndex(
-                                t => t.id === item.id
-                            )
+                        }
                     );
 
-                setUsers(uniqueUsers);
+                    usersData =
+                        tempUsers;
+                }
+            );
 
-                setLoading(false);
-            }
-        );
+        const unsubscribeRequests =
+            onSnapshot(
+                collection(
+                    db,
+                    'friendRequests'
+                ),
+                snapshot => {
+
+                    const updatedUsers =
+                        usersData.map(
+                            user => {
+
+                                let status:
+                                    | 'none'
+                                    | 'pending'
+                                    | 'friend' =
+                                    'none';
+
+                                let requestId =
+                                    '';
+
+                                snapshot.docs.forEach(
+                                    docItem => {
+
+                                        const request =
+                                            docItem.data();
+
+                                        const isCurrentUserRequest =
+                                            request.senderId ===
+                                                currentUserId &&
+                                            request.receiverId ===
+                                                user.id;
+
+                                        const isFriend =
+                                            (
+                                                request.senderId ===
+                                                    currentUserId &&
+                                                request.receiverId ===
+                                                    user.id
+                                            ) ||
+                                            (
+                                                request.senderId ===
+                                                    user.id &&
+                                                request.receiverId ===
+                                                    currentUserId
+                                            );
+
+                                        // PENDING
+
+                                        if (
+                                            isCurrentUserRequest &&
+                                            request.status ===
+                                                'pending'
+                                        ) {
+
+                                            status =
+                                                'pending';
+
+                                            requestId =
+                                                docItem.id;
+                                        }
+
+                                        // FRIEND
+
+                                        if (
+                                            isFriend &&
+                                            request.status ===
+                                                'accepted'
+                                        ) {
+
+                                            status =
+                                                'friend';
+
+                                            requestId =
+                                                docItem.id;
+                                        }
+                                    }
+                                );
+
+                                return {
+                                    ...user,
+                                    status,
+                                    requestId,
+                                };
+                            }
+                        );
+
+                    // REMOVE DUPLICATES
+
+                    const uniqueUsers =
+                        updatedUsers.filter(
+                            (
+                                item,
+                                index,
+                                self
+                            ) =>
+                                index ===
+                                self.findIndex(
+                                    t =>
+                                        t.id ===
+                                        item.id
+                                )
+                        );
+
+                    setUsers(
+                        uniqueUsers
+                    );
+
+                    setLoading(false);
+                }
+            );
 
         return () => {
+
             unsubscribeUsers();
 
             unsubscribeRequests();
         };
+
     }, [currentUserId]);
 
     // =========================
     // SEND REQUEST
     // =========================
 
-    const sendRequest = async (
-        receiverId: string
-    ) => {
-        if (!currentUserId) return;
+    const sendRequest =
+        async (
+            receiverId: string
+        ) => {
 
-        try {
-            setSendingId(receiverId);
+            if (!currentUserId) {
+                return;
+            }
 
-            // CHECK REQUEST EXIST
-            const q1 = query(
-                collection(db, 'friendRequests'),
-                where('senderId', '==', currentUserId),
-                where('receiverId', '==', receiverId)
-            );
+            try {
 
-            const q2 = query(
-                collection(db, 'friendRequests'),
-                where('senderId', '==', receiverId),
-                where('receiverId', '==', currentUserId)
-            );
+                setSendingId(
+                    receiverId
+                );
 
-            const [snapshot1, snapshot2] =
-                await Promise.all([
+                const q1 = query(
+                    collection(
+                        db,
+                        'friendRequests'
+                    ),
+
+                    where(
+                        'senderId',
+                        '==',
+                        currentUserId
+                    ),
+
+                    where(
+                        'receiverId',
+                        '==',
+                        receiverId
+                    )
+                );
+
+                const q2 = query(
+                    collection(
+                        db,
+                        'friendRequests'
+                    ),
+
+                    where(
+                        'senderId',
+                        '==',
+                        receiverId
+                    ),
+
+                    where(
+                        'receiverId',
+                        '==',
+                        currentUserId
+                    )
+                );
+
+                const [
+                    snapshot1,
+                    snapshot2,
+                ] = await Promise.all([
                     getDocs(q1),
                     getDocs(q2),
                 ]);
 
-            // PREVENT MULTIPLE REQUEST
-            if (
-                !snapshot1.empty ||
-                !snapshot2.empty
-            ) {
-                setSendingId('');
+                if (
+                    !snapshot1.empty ||
+                    !snapshot2.empty
+                ) {
 
-                return;
-            }
+                    setSendingId('');
 
-            await addDoc(
-                collection(db, 'friendRequests'),
-                {
-                    senderId: currentUserId,
-                    receiverId,
-                    status: 'pending',
-                    createdAt: serverTimestamp(),
+                    return;
                 }
-            );
-        } catch (error) {
-            console.log(error);
 
-            Alert.alert(
-                'Error',
-                'Failed to send request'
-            );
-        } finally {
-            setSendingId('');
-        }
-    };
+                await addDoc(
+                    collection(
+                        db,
+                        'friendRequests'
+                    ),
+                    {
+                        senderId:
+                            currentUserId,
+
+                        receiverId,
+
+                        status:
+                            'pending',
+
+                        createdAt:
+                            serverTimestamp(),
+                    }
+                );
+
+            } catch (error) {
+
+                console.log(error);
+
+                Alert.alert(
+                    'Error',
+                    'Failed to send request'
+                );
+
+            } finally {
+
+                setSendingId('');
+            }
+        };
 
     // =========================
     // CANCEL REQUEST
     // =========================
 
-    const cancelRequest = async (
-        requestId?: string
-    ) => {
-        if (!requestId) return;
+    const cancelRequest =
+        async (
+            requestId?: string
+        ) => {
 
-        try {
-            await deleteDoc(
-                doc(
-                    db,
-                    'friendRequests',
-                    requestId
-                )
-            );
-        } catch (error) {
-            console.log(error);
+            if (!requestId) {
+                return;
+            }
 
-            Alert.alert(
-                'Error',
-                'Failed to cancel request'
-            );
-        }
-    };
+            try {
+
+                await deleteDoc(
+                    doc(
+                        db,
+                        'friendRequests',
+                        requestId
+                    )
+                );
+
+            } catch (error) {
+
+                console.log(error);
+
+                Alert.alert(
+                    'Error',
+                    'Failed to cancel request'
+                );
+            }
+        };
 
     // =========================
     // FILTER USERS
     // =========================
 
-    const filteredUsers = useMemo(() => {
-        return users.filter(user =>
-            user.name
-                .toLowerCase()
-                .includes(search.toLowerCase())
-        );
-    }, [search, users]);
+    const filteredUsers =
+        useMemo(() => {
 
-    // =========================
-    // PROFILE IMAGE
-    // =========================
-
-    const renderProfileImage = (
-        image?: string
-    ) => {
-        if (image) {
-            return (
-                <Image
-                    source={{ uri: image }}
-                    style={styles.profileImage}
-                />
+            return users.filter(
+                user =>
+                    user.name
+                        .toLowerCase()
+                        .includes(
+                            search.toLowerCase()
+                        )
             );
-        }
 
-        return (
-            <View style={styles.dummyAvatar}>
-                <Ionicons
-                    name="person"
-                    size={22}
-                    color="#FFFFFF"
-                />
-            </View>
-        );
-    };
+        }, [search, users]);
 
     // =========================
-    // BUTTON UI
+    // LOADING
+    // =========================
+
+    if (loading) {
+        return <SkeletonLoader />;
+    }
+
+    // =========================
+    // BUTTON
     // =========================
 
     const renderButton = (
         item: UserItem
     ) => {
+
         // FRIEND
-        if (item.status === 'friend') {
+
+        if (
+            item.status ===
+            'friend'
+        ) {
+
             return (
-                <View style={styles.friendButton}>
+
+                <View
+                    style={
+                        styles.friendButton
+                    }
+                >
+
                     <Ionicons
                         name="checkmark-circle"
                         size={15}
                         color="#16A34A"
                     />
 
-                    <Text style={styles.friendText}>
+                    <Text
+                        style={
+                            styles.friendText
+                        }
+                    >
                         Friends
                     </Text>
+
                 </View>
             );
         }
 
         // PENDING
-        if (item.status === 'pending') {
+
+        if (
+            item.status ===
+            'pending'
+        ) {
+
             return (
+
                 <TouchableOpacity
                     activeOpacity={0.8}
-                    style={styles.cancelButton}
+                    style={
+                        styles.cancelButton
+                    }
                     onPress={() =>
-                        cancelRequest(item.requestId)
+                        cancelRequest(
+                            item.requestId
+                        )
                     }
                 >
-                    <Text style={styles.cancelText}>
+
+                    <Text
+                        style={
+                            styles.cancelText
+                        }
+                    >
                         Cancel
                     </Text>
+
                 </TouchableOpacity>
             );
         }
 
-        // ADD
+        // ADD BUTTON
+
         return (
-            <TouchableOpacity
-                activeOpacity={0.8}
-                style={styles.addButton}
-                disabled={sendingId === item.id}
-                onPress={() =>
-                    sendRequest(item.id)
+
+            <View
+                style={
+                    styles.addButtonWrapper
                 }
             >
-                {sendingId === item.id ? (
-                    <ActivityIndicator
-                        size="small"
-                        color="#FFFFFF"
-                    />
-                ) : (
-                    <>
-                        <Ionicons
-                            name="person-add"
-                            size={15}
-                            color="#FFFFFF"
-                        />
 
-                        <Text style={styles.addText}>
-                            Add
-                        </Text>
-                    </>
-                )}
-            </TouchableOpacity>
+                <AppButton
+                    title="Add"
+                    loading={
+                        sendingId ===
+                        item.id
+                    }
+                    onPress={() =>
+                        sendRequest(
+                            item.id
+                        )
+                    }
+                />
+
+            </View>
         );
     };
 
@@ -386,26 +543,50 @@ export default function PeopleScreen() {
     }: {
         item: UserItem;
     }) => {
-        return (
-            <View style={styles.userRow}>
-                <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={styles.leftSection}
-                >
-                    <View>
-                        {renderProfileImage(
-                            item.image
-                        )}
 
-                        <View style={styles.onlineDot} />
+        return (
+
+            <View
+                style={
+                    styles.userRow
+                }
+            >
+
+                <View
+                    style={
+                        styles.leftSection
+                    }
+                >
+
+                    <View>
+
+                        <UserAvatar
+                            image={
+                                item.image
+                            }
+                            size={56}
+                        />
+
+                        <View
+                            style={
+                                styles.onlineDot
+                            }
+                        />
+
                     </View>
 
-                    <Text style={styles.name}>
+                    <Text
+                        style={
+                            styles.name
+                        }
+                    >
                         {item.name}
                     </Text>
-                </TouchableOpacity>
+
+                </View>
 
                 {renderButton(item)}
+
             </View>
         );
     };
@@ -415,100 +596,101 @@ export default function PeopleScreen() {
     // =========================
 
     return (
-        <SafeAreaView
-            edges={['top']}
-            style={styles.container}
-        >
-            <StatusBar
-                backgroundColor="#FFFFFF"
-                barStyle="dark-content"
-            />
 
-            <Text style={styles.headerTitle}>
+        <AppContainer>
+
+            <Text
+                style={
+                    styles.headerTitle
+                }
+            >
                 Find Friends
             </Text>
 
             {/* SEARCH */}
-            <View style={styles.searchContainer}>
-                <Ionicons
-                    name="search"
-                    size={18}
-                    color="#9CA3AF"
+
+            <View
+                style={
+                    styles.searchWrapper
+                }
+            >
+
+                <AppInput
+                    placeholder="Search friends"
+                    value={search}
+                    onChangeText={
+                        setSearch
+                    }
+                    leftIcon={
+                        <Ionicons
+                            name="search"
+                            size={18}
+                            color="#9CA3AF"
+                        />
+                    }
                 />
 
-                <TextInput
-                    placeholder="Search..."
-                    placeholderTextColor="#9CA3AF"
-                    value={search}
-                    onChangeText={setSearch}
-                    style={styles.searchInput}
-                />
             </View>
 
-            {loading ? (
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator
-                        size="large"
-                        color="#6487E8"
-                    />
-                </View>
-            ) : (
-                <FlatList
-                    data={filteredUsers}
-                    keyExtractor={item => item.id}
-                    renderItem={renderItem}
-                    showsVerticalScrollIndicator={
-                        false
-                    }
-                    contentContainerStyle={{
-                        paddingBottom: 120,
-                    }}
-                />
-            )}
-        </SafeAreaView>
+            {/* USERS */}
+
+            <FlatList
+                data={filteredUsers}
+                renderItem={renderItem}
+                keyExtractor={item =>
+                    item.id
+                }
+                showsVerticalScrollIndicator={
+                    false
+                }
+                contentContainerStyle={
+                    styles.listContent
+                }
+            />
+
+        </AppContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 16,
-    },
 
     headerTitle: {
         fontSize: 30,
         fontWeight: '800',
-        color: '#111827',
+
+        color:
+            COLORS.textPrimary,
+
         marginTop: 10,
         marginBottom: 18,
+
+        paddingHorizontal: 16,
     },
 
-    searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F3F4F6',
-        height: 48,
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        marginBottom: 18,
+    searchWrapper: {
+        paddingHorizontal: 16,
+        marginBottom: 16,
     },
 
-    searchInput: {
-        flex: 1,
-        marginLeft: 8,
-        fontSize: 14,
-        color: '#111827',
+    listContent: {
+        paddingHorizontal: 16,
+        paddingBottom: 120,
     },
 
     userRow: {
         flexDirection: 'row',
+
         alignItems: 'center',
+
         justifyContent:
             'space-between',
+
         paddingVertical: 14,
+
         borderBottomWidth: 1,
-        borderBottomColor: '#EEF2F7',
+
+        borderBottomColor:
+            '#EEF2F7',
     },
 
     leftSection: {
@@ -517,95 +699,88 @@ const styles = StyleSheet.create({
         flex: 1,
     },
 
-    profileImage: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-    },
-
-    dummyAvatar: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: '#6487E8',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
     onlineDot: {
         width: 13,
         height: 13,
+
         borderRadius: 7,
-        backgroundColor: '#22C55E',
+
+        backgroundColor:
+            '#22C55E',
+
         position: 'absolute',
+
         bottom: 1,
         right: 1,
+
         borderWidth: 2,
-        borderColor: '#FFFFFF',
+
+        borderColor:
+            COLORS.white,
     },
 
     name: {
         marginLeft: 14,
+
         fontSize: 17,
         fontWeight: '700',
-        color: '#111827',
+
+        color:
+            COLORS.textPrimary,
     },
 
-    addButton: {
-        height: 38,
-        minWidth: 92,
-        borderRadius: 12,
-        backgroundColor: '#6487E8',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 14,
-    },
-
-    addText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '700',
-        marginLeft: 5,
+    addButtonWrapper: {
+        width: 92,
     },
 
     cancelButton: {
         height: 38,
+
         minWidth: 92,
+
         borderRadius: 12,
-        backgroundColor: '#FEE2E2',
+
+        backgroundColor:
+            '#FEE2E2',
+
         justifyContent: 'center',
         alignItems: 'center',
+
         paddingHorizontal: 14,
     },
 
     cancelText: {
         color: '#EF4444',
+
         fontSize: 14,
         fontWeight: '700',
     },
 
     friendButton: {
         height: 38,
+
         minWidth: 100,
+
         borderRadius: 12,
-        backgroundColor: '#DCFCE7',
+
+        backgroundColor:
+            '#DCFCE7',
+
         flexDirection: 'row',
+
         alignItems: 'center',
         justifyContent: 'center',
+
         paddingHorizontal: 14,
     },
 
     friendText: {
         color: '#16A34A',
+
         fontSize: 14,
         fontWeight: '700',
+
         marginLeft: 5,
     },
 
-    loaderContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
 });

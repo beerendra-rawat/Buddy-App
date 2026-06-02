@@ -1,8 +1,8 @@
-// ==========================
-// FINAL FRIEND SCREEN FIXED
-// ==========================
-
-import React, { useEffect, useState } from 'react';
+import React, {
+    useEffect,
+    useMemo,
+    useState,
+} from 'react';
 
 import {
     View,
@@ -10,18 +10,19 @@ import {
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    Image,
-    TextInput,
-    StatusBar,
 } from 'react-native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+    Ionicons,
+} from '@expo/vector-icons';
 
-import { Ionicons } from '@expo/vector-icons';
+import {
+    useNavigation,
+} from '@react-navigation/native';
 
-import { useNavigation } from '@react-navigation/native';
-
-import { onAuthStateChanged } from 'firebase/auth';
+import {
+    onAuthStateChanged,
+} from 'firebase/auth';
 
 import {
     collection,
@@ -35,7 +36,29 @@ import {
     writeBatch,
 } from 'firebase/firestore';
 
-import { auth, db } from '../../services/firebase';
+import {
+    auth,
+    db,
+} from '../../services/firebase';
+
+import AppContainer from
+    '../../components/common/AppContainer';
+
+import AppInput from
+    '../../components/common/AppInput';
+
+import AppButton from
+    '../../components/common/AppButton';
+
+import UserAvatar from
+    '../../components/common/UserAvatar';
+
+import SkeletonLoader from
+    '../../components/common/SkeletonLoader';
+
+import {
+    COLORS,
+} from '../../constants/colors';
 
 type FriendRequest = {
     requestId: string;
@@ -52,9 +75,14 @@ type Friend = {
 
 export default function FriendScreen() {
 
-    const navigation = useNavigation<any>();
+    const navigation =
+        useNavigation<any>();
 
-    const [search, setSearch] = useState('');
+    const [search, setSearch] =
+        useState('');
+
+    const [loading, setLoading] =
+        useState(true);
 
     const [currentUserId, setCurrentUserId] =
         useState('');
@@ -72,12 +100,18 @@ export default function FriendScreen() {
     useEffect(() => {
 
         const unsubscribe =
-            onAuthStateChanged(auth, user => {
+            onAuthStateChanged(
+                auth,
+                user => {
 
-                if (user) {
-                    setCurrentUserId(user.uid);
+                    if (user) {
+
+                        setCurrentUserId(
+                            user.uid
+                        );
+                    }
                 }
-            });
+            );
 
         return unsubscribe;
 
@@ -89,78 +123,109 @@ export default function FriendScreen() {
 
     useEffect(() => {
 
-        if (!currentUserId) return;
+        if (!currentUserId) {
+            return;
+        }
 
         const q = query(
-            collection(db, 'friendRequests'),
-            where('receiverId', '==', currentUserId),
-            where('status', '==', 'pending')
+            collection(
+                db,
+                'friendRequests'
+            ),
+            where(
+                'receiverId',
+                '==',
+                currentUserId
+            ),
+            where(
+                'status',
+                '==',
+                'pending'
+            )
         );
 
-        const unsubscribe = onSnapshot(
-            q,
-            async snapshot => {
+        const unsubscribe =
+            onSnapshot(
+                q,
+                async snapshot => {
 
-                const uniqueUsers = new Set();
+                    const uniqueUsers =
+                        new Set();
 
-                const requests: FriendRequest[] = [];
+                    const requests:
+                        FriendRequest[] = [];
 
-                for (const item of snapshot.docs) {
+                    for (const item of snapshot.docs) {
 
-                    const data = item.data();
+                        const data =
+                            item.data();
 
-                    const senderId = data.senderId;
+                        const senderId =
+                            data.senderId;
 
-                    // ==========================
-                    // REMOVE DUPLICATE REQUESTS
-                    // ==========================
-
-                    if (
-                        uniqueUsers.has(senderId)
-                    ) {
-
-                        // AUTO DELETE DUPLICATE
-                        await deleteDoc(
-                            doc(
-                                db,
-                                'friendRequests',
-                                item.id
+                        if (
+                            uniqueUsers.has(
+                                senderId
                             )
+                        ) {
+
+                            await deleteDoc(
+                                doc(
+                                    db,
+                                    'friendRequests',
+                                    item.id
+                                )
+                            );
+
+                            continue;
+                        }
+
+                        uniqueUsers.add(
+                            senderId
                         );
 
-                        continue;
+                        const userSnap =
+                            await getDoc(
+                                doc(
+                                    db,
+                                    'users',
+                                    senderId
+                                )
+                            );
+
+                        if (
+                            !userSnap.exists()
+                        ) {
+                            continue;
+                        }
+
+                        const userData =
+                            userSnap.data();
+
+                        requests.push({
+                            requestId:
+                                item.id,
+
+                            senderId,
+
+                            name:
+                                userData?.name ||
+                                userData?.username ||
+                                'No Name',
+
+                            image:
+                                userData?.photoURL ||
+                                userData?.image ||
+                                userData?.profileImage ||
+                                '',
+                        });
                     }
 
-                    uniqueUsers.add(senderId);
-
-                    const userSnap = await getDoc(
-                        doc(db, 'users', senderId)
+                    setFriendRequests(
+                        requests
                     );
-
-                    if (!userSnap.exists()) continue;
-
-                    const userData = userSnap.data();
-
-                    requests.push({
-                        requestId: item.id,
-                        senderId,
-
-                        name:
-                            userData?.name ||
-                            userData?.username ||
-                            'No Name',
-
-                        image:
-                            userData?.photoURL ||
-                            userData?.image ||
-                            userData?.profileImage ||
-                            '',
-                    });
                 }
-
-                setFriendRequests(requests);
-            }
-        );
+            );
 
         return unsubscribe;
 
@@ -172,93 +237,124 @@ export default function FriendScreen() {
 
     useEffect(() => {
 
-        if (!currentUserId) return;
+        if (!currentUserId) {
+            return;
+        }
 
         const q = query(
-            collection(db, 'friendRequests'),
-            where('status', '==', 'accepted')
+            collection(
+                db,
+                'friendRequests'
+            ),
+            where(
+                'status',
+                '==',
+                'accepted'
+            )
         );
 
-        const unsubscribe = onSnapshot(
-            q,
-            async snapshot => {
+        const unsubscribe =
+            onSnapshot(
+                q,
+                async snapshot => {
 
-                const uniqueFriends =
-                    new Set();
+                    try {
 
-                const friendList: Friend[] = [];
+                        const uniqueFriends =
+                            new Set();
 
-                for (const item of snapshot.docs) {
+                        const friendList:
+                            Friend[] = [];
 
-                    const data = item.data();
+                        for (const item of snapshot.docs) {
 
-                    let friendId = '';
+                            const data =
+                                item.data();
 
-                    if (
-                        data.senderId ===
-                        currentUserId
-                    ) {
+                            let friendId =
+                                '';
 
-                        friendId =
-                            data.receiverId;
+                            if (
+                                data.senderId ===
+                                currentUserId
+                            ) {
 
-                    } else if (
-                        data.receiverId ===
-                        currentUserId
-                    ) {
+                                friendId =
+                                    data.receiverId;
 
-                        friendId =
-                            data.senderId;
+                            } else if (
+                                data.receiverId ===
+                                currentUserId
+                            ) {
 
-                    } else {
-                        continue;
+                                friendId =
+                                    data.senderId;
+
+                            } else {
+
+                                continue;
+                            }
+
+                            if (
+                                uniqueFriends.has(
+                                    friendId
+                                )
+                            ) {
+                                continue;
+                            }
+
+                            uniqueFriends.add(
+                                friendId
+                            );
+
+                            const userSnap =
+                                await getDoc(
+                                    doc(
+                                        db,
+                                        'users',
+                                        friendId
+                                    )
+                                );
+
+                            if (
+                                !userSnap.exists()
+                            ) {
+                                continue;
+                            }
+
+                            const userData =
+                                userSnap.data();
+
+                            friendList.push({
+                                id: friendId,
+
+                                name:
+                                    userData?.name ||
+                                    userData?.username ||
+                                    'No Name',
+
+                                image:
+                                    userData?.photoURL ||
+                                    userData?.image ||
+                                    userData?.profileImage ||
+                                    '',
+                            });
+                        }
+
+                        setFriends(
+                            friendList
+                        );
+
+                    } catch (error) {
+
+                        console.log(error);
+
+                    } finally {
+
+                        setLoading(false);
                     }
-
-                    // REMOVE DUPLICATE
-
-                    if (
-                        uniqueFriends.has(
-                            friendId
-                        )
-                    ) {
-                        continue;
-                    }
-
-                    uniqueFriends.add(friendId);
-
-                    const userSnap = await getDoc(
-                        doc(
-                            db,
-                            'users',
-                            friendId
-                        )
-                    );
-
-                    if (!userSnap.exists())
-                        continue;
-
-                    const userData =
-                        userSnap.data();
-
-                    friendList.push({
-                        id: friendId,
-
-                        name:
-                            userData?.name ||
-                            userData?.username ||
-                            'No Name',
-
-                        image:
-                            userData?.photoURL ||
-                            userData?.image ||
-                            userData?.profileImage ||
-                            '',
-                    });
                 }
-
-                setFriends(friendList);
-            }
-        );
+            );
 
         return unsubscribe;
 
@@ -268,104 +364,92 @@ export default function FriendScreen() {
     // ACCEPT REQUEST
     // ==========================
 
-    const acceptRequest = async (
-        item: FriendRequest
-    ) => {
+    const acceptRequest =
+        async (
+            item: FriendRequest
+        ) => {
 
-        try {
+            try {
 
-            const batch =
-                writeBatch(db);
+                const batch =
+                    writeBatch(db);
 
-            // UPDATE REQUEST
+                const requestRef =
+                    doc(
+                        db,
+                        'friendRequests',
+                        item.requestId
+                    );
 
-            const requestRef = doc(
-                db,
-                'friendRequests',
-                item.requestId
-            );
+                batch.update(
+                    requestRef,
+                    {
+                        status:
+                            'accepted',
 
-            batch.update(requestRef, {
-                status: 'accepted',
-                updatedAt:
-                    serverTimestamp(),
-            });
+                        updatedAt:
+                            serverTimestamp(),
+                    }
+                );
 
-            await batch.commit();
+                await batch.commit();
 
-        } catch (error) {
-            console.log(error);
-        }
-    };
+            } catch (error) {
+
+                console.log(error);
+            }
+        };
 
     // ==========================
     // REMOVE REQUEST
     // ==========================
 
-    const removeRequest = async (
-        requestId: string
-    ) => {
+    const removeRequest =
+        async (
+            requestId: string
+        ) => {
 
-        try {
+            try {
 
-            await deleteDoc(
-                doc(
-                    db,
-                    'friendRequests',
-                    requestId
-                )
-            );
+                await deleteDoc(
+                    doc(
+                        db,
+                        'friendRequests',
+                        requestId
+                    )
+                );
 
-        } catch (error) {
-            console.log(error);
-        }
-    };
+            } catch (error) {
+
+                console.log(error);
+            }
+        };
 
     // ==========================
     // FILTER FRIENDS
     // ==========================
 
     const filteredFriends =
-        friends.filter(item =>
-            item.name
-                ?.toLowerCase()
-                .includes(
-                    search.toLowerCase()
-                )
-        );
+        useMemo(() => {
 
-    // ==========================
-    // AVATAR
-    // ==========================
-
-    const renderAvatar = (
-        image: string
-    ) => {
-
-        if (image) {
-
-            return (
-                <Image
-                    source={{ uri: image }}
-                    style={
-                        styles.profileImage
-                    }
-                />
+            return friends.filter(
+                item =>
+                    item.name
+                        ?.toLowerCase()
+                        .includes(
+                            search.toLowerCase()
+                        )
             );
-        }
 
-        return (
-            <View
-                style={styles.dummyAvatar}
-            >
-                <Ionicons
-                    name="person"
-                    size={24}
-                    color="#FFFFFF"
-                />
-            </View>
-        );
-    };
+        }, [friends, search]);
+
+    // ==========================
+    // LOADING
+    // ==========================
+
+    if (loading) {
+        return <SkeletonLoader />;
+    }
 
     // ==========================
     // REQUEST ITEM
@@ -375,14 +459,27 @@ export default function FriendScreen() {
         item,
     }: any) => (
 
-        <View style={styles.requestCard}>
+        <View
+            style={
+                styles.requestCard
+            }
+        >
 
-            {renderAvatar(item.image)}
+            <UserAvatar
+                image={item.image}
+                size={56}
+            />
 
-            <View style={{ flex: 1 }}>
+            <View
+                style={
+                    styles.requestContent
+                }
+            >
 
                 <Text
-                    style={styles.userName}
+                    style={
+                        styles.userName
+                    }
                 >
                     {item.name}
                 </Text>
@@ -397,28 +494,33 @@ export default function FriendScreen() {
 
             </View>
 
-            <View style={styles.buttonRow}>
+            <View
+                style={
+                    styles.buttonRow
+                }
+            >
 
-                <TouchableOpacity
+                <View
                     style={
-                        styles.acceptBtn
-                    }
-                    onPress={() =>
-                        acceptRequest(item)
+                        styles.acceptWrapper
                     }
                 >
-                    <Text
-                        style={
-                            styles.acceptText
+
+                    <AppButton
+                        title="Accept"
+                        onPress={() =>
+                            acceptRequest(
+                                item
+                            )
                         }
-                    >
-                        Accept
-                    </Text>
-                </TouchableOpacity>
+                    />
+
+                </View>
 
                 <TouchableOpacity
+                    activeOpacity={0.8}
                     style={
-                        styles.removeBtn
+                        styles.removeButton
                     }
                     onPress={() =>
                         removeRequest(
@@ -426,6 +528,7 @@ export default function FriendScreen() {
                         )
                     }
                 >
+
                     <Text
                         style={
                             styles.removeText
@@ -433,6 +536,7 @@ export default function FriendScreen() {
                     >
                         Remove
                     </Text>
+
                 </TouchableOpacity>
 
             </View>
@@ -449,18 +553,25 @@ export default function FriendScreen() {
     }: any) => (
 
         <TouchableOpacity
-            style={styles.friendItem}
             activeOpacity={0.8}
+            style={styles.friendItem}
         >
 
             <View
-                style={styles.friendLeft}
+                style={
+                    styles.friendLeft
+                }
             >
 
-                {renderAvatar(item.image)}
+                <UserAvatar
+                    image={item.image}
+                    size={56}
+                />
 
                 <Text
-                    style={styles.userName}
+                    style={
+                        styles.userName
+                    }
                 >
                     {item.name}
                 </Text>
@@ -468,72 +579,92 @@ export default function FriendScreen() {
             </View>
 
             <TouchableOpacity
-                style={styles.messageBtn}
+                activeOpacity={0.8}
+                style={
+                    styles.messageButton
+                }
                 onPress={() =>
                     navigation.navigate(
                         'Message',
                         {
-                            receiverId: item.id,
-                            name: item.name,
-                            image: item.image,
+                            receiverId:
+                                item.id,
+
+                            name:
+                                item.name,
+
+                            image:
+                                item.image,
                         }
                     )
                 }
             >
+
                 <Ionicons
                     name="chatbubble-outline"
                     size={22}
-                    color="#2563EB"
+                    color={
+                        COLORS.primary
+                    }
                 />
+
             </TouchableOpacity>
 
         </TouchableOpacity>
     );
 
+    // ==========================
+    // UI
+    // ==========================
+
     return (
 
-        <SafeAreaView
-            style={styles.container}
-        >
-
-            <StatusBar
-                barStyle="dark-content"
-            />
+        <AppContainer>
 
             {/* SEARCH */}
 
-            <View style={styles.searchBox}>
+            <View
+                style={
+                    styles.searchContainer
+                }
+            >
 
-                <Ionicons
-                    name="search-outline"
-                    size={20}
-                    color="#9CA3AF"
-                />
-
-                <TextInput
+                <AppInput
                     placeholder="Search friends"
-                    placeholderTextColor="#9CA3AF"
                     value={search}
-                    onChangeText={setSearch}
-                    style={styles.input}
+                    onChangeText={
+                        setSearch
+                    }
+                    leftIcon={
+                        <Ionicons
+                            name="search-outline"
+                            size={20}
+                            color="#9CA3AF"
+                        />
+                    }
                 />
 
             </View>
 
             <FlatList
                 data={filteredFriends}
-                renderItem={renderFriend}
-                keyExtractor={item => item.id}
+                renderItem={
+                    renderFriend
+                }
+                keyExtractor={item =>
+                    item.id
+                }
                 showsVerticalScrollIndicator={
                     false
                 }
-                contentContainerStyle={{
-                    paddingBottom: 120,
-                }}
+                contentContainerStyle={
+                    styles.listContent
+                }
                 ListHeaderComponent={
                     <>
-                        {friendRequests.length >
-                            0 && (
+                        {
+                            friendRequests.length >
+                                0 && (
                                 <>
                                     <Text
                                         style={
@@ -559,10 +690,13 @@ export default function FriendScreen() {
                                         }
                                     />
                                 </>
-                            )}
+                            )
+                        }
 
                         <Text
-                            style={styles.heading}
+                            style={
+                                styles.heading
+                            }
                         >
                             Friends
                         </Text>
@@ -570,108 +704,113 @@ export default function FriendScreen() {
                 }
             />
 
-        </SafeAreaView>
+        </AppContainer>
     );
 }
 
 const styles = StyleSheet.create({
 
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
+    searchContainer: {
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: 18,
     },
 
-    searchBox: {
-        height: 54,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        marginHorizontal: 16,
-        borderRadius: 16,
-        paddingHorizontal: 14,
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 10,
-        marginBottom: 20,
-    },
-
-    input: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 15,
-        color: '#111827',
+    listContent: {
+        paddingBottom: 120,
     },
 
     heading: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#111827',
+
+        color:
+            COLORS.textPrimary,
+
         paddingHorizontal: 16,
+
         marginBottom: 16,
         marginTop: 6,
     },
 
     requestCard: {
         flexDirection: 'row',
+
         alignItems: 'center',
+
         marginHorizontal: 16,
-        paddingBottom: 16,
-        marginBottom: 16,
+
+        paddingBottom: 18,
+        marginBottom: 18,
+
         borderBottomWidth: 1,
-        borderColor: '#F1F5F9',
+
+        borderBottomColor:
+            '#F1F5F9',
+    },
+
+    requestContent: {
+        flex: 1,
+        marginLeft: 14,
     },
 
     requestText: {
-        fontSize: 13,
-        color: '#6B7280',
         marginTop: 4,
+
+        fontSize: 13,
+
+        color:
+            COLORS.textSecondary,
     },
 
     buttonRow: {
-        flexDirection: 'row',
         alignItems: 'center',
     },
 
-    acceptBtn: {
-        backgroundColor: '#2563EB',
-        paddingHorizontal: 18,
+    acceptWrapper: {
+        width: 100,
+    },
+
+    removeButton: {
         height: 40,
+
+        minWidth: 100,
+
         borderRadius: 12,
+
+        backgroundColor:
+            '#FEE2E2',
+
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 8,
-    },
 
-    removeBtn: {
-        backgroundColor: '#FEE2E2',
-        paddingHorizontal: 18,
-        height: 40,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    acceptText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 14,
+        marginTop: 8,
     },
 
     removeText: {
         color: '#EF4444',
-        fontWeight: '700',
+
         fontSize: 14,
+        fontWeight: '700',
     },
 
     friendItem: {
         flexDirection: 'row',
+
         alignItems: 'center',
+
         justifyContent:
             'space-between',
+
         marginHorizontal: 16,
-        paddingBottom: 16,
-        marginBottom: 16,
+
+        paddingBottom: 18,
+        marginBottom: 18,
+
         borderBottomWidth: 1,
-        borderColor: '#F1F5F9',
+
+        borderBottomColor:
+            '#F1F5F9',
     },
 
     friendLeft: {
@@ -679,35 +818,24 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
 
-    messageBtn: {
+    messageButton: {
         width: 42,
         height: 42,
+
         borderRadius: 21,
+
         justifyContent: 'center',
         alignItems: 'center',
-    },
-
-    profileImage: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        marginRight: 14,
-    },
-
-    dummyAvatar: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: '#5B7FFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 14,
     },
 
     userName: {
+        marginLeft: 14,
+
         fontSize: 16,
         fontWeight: '600',
-        color: '#111827',
+
+        color:
+            COLORS.textPrimary,
     },
 
 });

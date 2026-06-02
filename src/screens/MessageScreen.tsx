@@ -10,20 +10,16 @@ import {
     StyleSheet,
     TouchableOpacity,
     FlatList,
-    TextInput,
-    Image,
     KeyboardAvoidingView,
     Platform,
     Alert,
+    Image,
     ActivityIndicator,
 } from 'react-native';
 
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-
-import { Ionicons } from '@expo/vector-icons';
-
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+    Ionicons,
+} from '@expo/vector-icons';
 
 import {
     useNavigation,
@@ -42,12 +38,31 @@ import {
     getDoc,
 } from 'firebase/firestore';
 
+import * as ImagePicker from 'expo-image-picker';
+
+import * as FileSystem from
+    'expo-file-system/legacy';
+
 import {
     auth,
     db,
 } from '../services/firebase';
 
-import BackButton from '../components/auth/BackButton';
+import AppContainer from
+    '../components/common/AppContainer';
+
+import AppInput from
+    '../components/common/AppInput';
+
+import UserAvatar from
+    '../components/common/UserAvatar';
+
+import {
+    COLORS,
+} from '../constants/colors';
+
+import BackButton from
+    '../components/auth/BackButton';
 
 type MessageItem = {
     id: string;
@@ -62,40 +77,17 @@ type RouteParams = {
     receiverId: string;
 };
 
-const DummyAvatar = ({
-    size = 50,
-}: {
-    size?: number;
-}) => (
-
-    <View
-        style={[
-            styles.dummyAvatar,
-            {
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-            },
-        ]}
-    >
-
-        <Ionicons
-            name="person"
-            size={size * 0.5}
-            color="#FFFFFF"
-        />
-
-    </View>
-);
-
 export default function MessageScreen() {
 
-    const navigation = useNavigation();
+    const navigation =
+        useNavigation<any>();
 
-    const route = useRoute();
+    const route =
+        useRoute();
 
-    const { receiverId } =
-        route.params as RouteParams;
+    const {
+        receiverId,
+    } = route.params as RouteParams;
 
     const currentUserId =
         auth.currentUser?.uid || '';
@@ -128,46 +120,64 @@ export default function MessageScreen() {
     const [selectedImage, setSelectedImage] =
         useState<string | null>(null);
 
+    // ==========================
     // GET USER DATA
+    // ==========================
+
     useEffect(() => {
 
-        if (!receiverId) return;
+        if (!receiverId) {
+            return;
+        }
 
-        const getUserData = async () => {
+        const getUserData =
+            async () => {
 
-            try {
+                try {
 
-                const userSnap = await getDoc(
-                    doc(db, 'users', receiverId)
-                );
+                    const userSnap =
+                        await getDoc(
+                            doc(
+                                db,
+                                'users',
+                                receiverId
+                            )
+                        );
 
-                if (userSnap.exists()) {
+                    if (
+                        userSnap.exists()
+                    ) {
 
-                    const data = userSnap.data();
+                        const data =
+                            userSnap.data();
 
-                    setUserName(
-                        data?.name || 'User'
-                    );
+                        setUserName(
+                            data?.name ||
+                            'User'
+                        );
 
-                    setUserImage(
-                        data?.profileImage || ''
+                        setUserImage(
+                            data?.profileImage ||
+                            ''
+                        );
+                    }
+
+                } catch (error) {
+
+                    console.log(
+                        error
                     );
                 }
-
-            } catch (error) {
-
-                console.log(
-                    'Get User Error:',
-                    error
-                );
-            }
-        };
+            };
 
         getUserData();
 
     }, [receiverId]);
 
+    // ==========================
     // GET MESSAGES
+    // ==========================
+
     useEffect(() => {
 
         const q = query(
@@ -177,270 +187,272 @@ export default function MessageScreen() {
                 chatId,
                 'messages'
             ),
-            orderBy('createdAt', 'asc')
+            orderBy(
+                'createdAt',
+                'asc'
+            )
         );
 
         const unsubscribe =
-            onSnapshot(q, (snapshot) => {
+            onSnapshot(
+                q,
+                snapshot => {
 
-                const allMessages =
-                    snapshot.docs.map((doc) => ({
-                        id: doc.id,
-                        ...doc.data(),
-                    })) as MessageItem[];
+                    const allMessages =
+                        snapshot.docs.map(
+                            doc => ({
+                                id: doc.id,
+                                ...doc.data(),
+                            })
+                        ) as MessageItem[];
 
-                setMessages(allMessages);
+                    setMessages(
+                        allMessages
+                    );
 
-                setTimeout(() => {
+                    setTimeout(() => {
 
-                    flatListRef.current?.scrollToEnd({
-                        animated: true,
-                    });
+                        flatListRef.current?.scrollToEnd(
+                            {
+                                animated: true,
+                            }
+                        );
 
-                }, 200);
-            });
+                    }, 200);
+                }
+            );
 
         return unsubscribe;
 
     }, []);
 
-    // CLOUDINARY IMAGE UPLOAD
-    const uploadImageToCloudinary = async (
-        imageUri: string
-    ) => {
+    // ==========================
+    // CLOUDINARY
+    // ==========================
 
-        try {
-
-            const base64 =
-                await FileSystem.readAsStringAsync(
-                    imageUri,
-                    {
-                        encoding:
-                            FileSystem.EncodingType.Base64,
-                    }
-                );
-
-            const base64Img =
-                `data:image/jpeg;base64,${base64}`;
-
-            const response = await fetch(
-                'https://api.cloudinary.com/v1_1/dbtjsq1pm/image/upload',
-                {
-                    method: 'POST',
-
-                    headers: {
-                        'Content-Type':
-                            'application/json',
-                    },
-
-                    body: JSON.stringify({
-                        file: base64Img,
-                        upload_preset:
-                            'buddychat',
-                    }),
-                }
-            );
-
-            const data =
-                await response.json();
-
-            if (data.secure_url) {
-
-                return data.secure_url;
-            }
-
-            throw new Error(
-                data?.error?.message ||
-                'Upload failed'
-            );
-
-        } catch (error) {
-
-            console.log(
-                'Cloudinary Upload Error:',
-                error
-            );
-
-            throw error;
-        }
-    };
-
-    // SEND TEXT MESSAGE
-    // SEND TEXT MESSAGE
-    const sendMessage = async () => {
-
-        if (!message.trim()) return;
-
-        try {
-
-            const newMessage =
-                message.trim();
-
-            // =========================
-            // UPDATE CHAT DOCUMENT
-            // =========================
-
-            await setDoc(
-                doc(db, 'chats', chatId),
-                {
-                    users: [
-                        currentUserId,
-                        receiverId,
-                    ],
-
-                    lastMessage:
-                        newMessage,
-
-                    lastMessageTime:
-                        serverTimestamp(),
-                },
-                { merge: true }
-            );
-
-            // =========================
-            // UPDATE CURRENT USER
-            // =========================
-
-            await setDoc(
-                doc(db, 'users', currentUserId),
-                {
-                    lastMessage:
-                        newMessage,
-
-                    lastMessageTime:
-                        serverTimestamp(),
-                },
-                { merge: true }
-            );
-
-            // =========================
-            // UPDATE RECEIVER USER
-            // =========================
-
-            await setDoc(
-                doc(db, 'users', receiverId),
-                {
-                    lastMessage:
-                        newMessage,
-
-                    lastMessageTime:
-                        serverTimestamp(),
-                },
-                { merge: true }
-            );
-
-            // =========================
-            // SAVE MESSAGE
-            // =========================
-
-            await addDoc(
-                collection(
-                    db,
-                    'chats',
-                    chatId,
-                    'messages'
-                ),
-                {
-                    text: newMessage,
-
-                    senderId:
-                        currentUserId,
-
-                    receiverId,
-
-                    createdAt:
-                        serverTimestamp(),
-                }
-            );
-
-            setMessage('');
-
-        } catch (error) {
-
-            console.log(
-                'Send Message Error:',
-                error
-            );
-
-            Alert.alert(
-                'Error',
-                'Message not sent'
-            );
-        }
-    };
-
-    // PICK IMAGE
-    const pickImage = async () => {
-
-        try {
-
-            const permission =
-                await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-            if (
-                permission.status !==
-                'granted'
-            ) {
-
-                Alert.alert(
-                    'Permission Required',
-                    'Please allow gallery permission.'
-                );
-
-                return;
-            }
-
-            const result =
-                await ImagePicker.launchImageLibraryAsync(
-                    {
-                        mediaTypes:
-                            ImagePicker.MediaTypeOptions.Images,
-
-                        allowsEditing:
-                            true,
-
-                        aspect: [4, 4],
-
-                        quality: 0.7,
-                    }
-                );
-
-            if (result.canceled)
-                return;
-
-            setSelectedImage(
-                result.assets[0].uri
-            );
-
-        } catch (error) {
-
-            console.log(
-                'Pick Image Error:',
-                error
-            );
-        }
-    };
-
-    // SEND IMAGE
-    // SEND IMAGE
-    const sendImageMessage =
-        async () => {
-
-            if (!selectedImage)
-                return;
+    const uploadImageToCloudinary =
+        async (
+            imageUri: string
+        ) => {
 
             try {
 
-                setUploading(true);
+                const base64 =
+                    await FileSystem.readAsStringAsync(
+                        imageUri,
+                        {
+                            encoding:
+                                FileSystem.EncodingType.Base64,
+                        }
+                    );
+
+                const base64Img =
+                    `data:image/jpeg;base64,${base64}`;
+
+                const response =
+                    await fetch(
+                        'https://api.cloudinary.com/v1_1/dbtjsq1pm/image/upload',
+                        {
+                            method: 'POST',
+
+                            headers: {
+                                'Content-Type':
+                                    'application/json',
+                            },
+
+                            body: JSON.stringify({
+                                file: base64Img,
+
+                                upload_preset:
+                                    'buddychat',
+                            }),
+                        }
+                    );
+
+                const data =
+                    await response.json();
+
+                if (
+                    data.secure_url
+                ) {
+
+                    return data.secure_url;
+                }
+
+                throw new Error(
+                    data?.error
+                        ?.message ||
+                        'Upload failed'
+                );
+
+            } catch (error) {
+
+                console.log(
+                    error
+                );
+
+                throw error;
+            }
+        };
+
+    // ==========================
+    // SEND TEXT
+    // ==========================
+
+    const sendMessage =
+        async () => {
+
+            if (
+                !message.trim()
+            ) {
+                return;
+            }
+
+            try {
+
+                const newMessage =
+                    message.trim();
+
+                await setDoc(
+                    doc(
+                        db,
+                        'chats',
+                        chatId
+                    ),
+                    {
+                        users: [
+                            currentUserId,
+                            receiverId,
+                        ],
+
+                        lastMessage:
+                            newMessage,
+
+                        lastMessageTime:
+                            serverTimestamp(),
+                    },
+                    {
+                        merge: true,
+                    }
+                );
+
+                await addDoc(
+                    collection(
+                        db,
+                        'chats',
+                        chatId,
+                        'messages'
+                    ),
+                    {
+                        text:
+                            newMessage,
+
+                        senderId:
+                            currentUserId,
+
+                        receiverId,
+
+                        createdAt:
+                            serverTimestamp(),
+                    }
+                );
+
+                setMessage('');
+
+            } catch (error) {
+
+                console.log(
+                    error
+                );
+
+                Alert.alert(
+                    'Error',
+                    'Message not sent'
+                );
+            }
+        };
+
+    // ==========================
+    // PICK IMAGE
+    // ==========================
+
+    const pickImage =
+        async () => {
+
+            try {
+
+                const permission =
+                    await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+                if (
+                    permission.status !==
+                    'granted'
+                ) {
+
+                    Alert.alert(
+                        'Permission Required'
+                    );
+
+                    return;
+                }
+
+                const result =
+                    await ImagePicker.launchImageLibraryAsync(
+                        {
+                            mediaTypes:
+                                ImagePicker.MediaTypeOptions.Images,
+
+                            allowsEditing:
+                                true,
+
+                            aspect: [4, 4],
+
+                            quality: 0.7,
+                        }
+                    );
+
+                if (
+                    result.canceled
+                ) {
+                    return;
+                }
+
+                setSelectedImage(
+                    result.assets[0]
+                        .uri
+                );
+
+            } catch (error) {
+
+                console.log(
+                    error
+                );
+            }
+        };
+
+    // ==========================
+    // SEND IMAGE
+    // ==========================
+
+    const sendImageMessage =
+        async () => {
+
+            if (
+                !selectedImage
+            ) {
+                return;
+            }
+
+            try {
+
+                setUploading(
+                    true
+                );
 
                 const imageUrl =
                     await uploadImageToCloudinary(
                         selectedImage
                     );
-
-                // =========================
-                // UPDATE CHAT DOCUMENT
-                // =========================
 
                 await setDoc(
                     doc(
@@ -460,52 +472,10 @@ export default function MessageScreen() {
                         lastMessageTime:
                             serverTimestamp(),
                     },
-                    { merge: true }
-                );
-
-                // =========================
-                // UPDATE CURRENT USER
-                // =========================
-
-                await setDoc(
-                    doc(
-                        db,
-                        'users',
-                        currentUserId
-                    ),
                     {
-                        lastMessage:
-                            '📷 Photo',
-
-                        lastMessageTime:
-                            serverTimestamp(),
-                    },
-                    { merge: true }
+                        merge: true,
+                    }
                 );
-
-                // =========================
-                // UPDATE RECEIVER USER
-                // =========================
-
-                await setDoc(
-                    doc(
-                        db,
-                        'users',
-                        receiverId
-                    ),
-                    {
-                        lastMessage:
-                            '📷 Photo',
-
-                        lastMessageTime:
-                            serverTimestamp(),
-                    },
-                    { merge: true }
-                );
-
-                // =========================
-                // SAVE IMAGE MESSAGE
-                // =========================
 
                 await addDoc(
                     collection(
@@ -515,7 +485,8 @@ export default function MessageScreen() {
                         'messages'
                     ),
                     {
-                        image: imageUrl,
+                        image:
+                            imageUrl,
 
                         senderId:
                             currentUserId,
@@ -527,12 +498,13 @@ export default function MessageScreen() {
                     }
                 );
 
-                setSelectedImage(null);
+                setSelectedImage(
+                    null
+                );
 
             } catch (error) {
 
                 console.log(
-                    'Image Upload Error:',
                     error
                 );
 
@@ -543,11 +515,16 @@ export default function MessageScreen() {
 
             } finally {
 
-                setUploading(false);
+                setUploading(
+                    false
+                );
             }
         };
 
+    // ==========================
     // RENDER MESSAGE
+    // ==========================
+
     const renderMessage = ({
         item,
     }: {
@@ -570,21 +547,18 @@ export default function MessageScreen() {
                 ]}
             >
 
-                {!isMe &&
-                    (userImage ? (
-                        <Image
-                            source={{
-                                uri: userImage,
-                            }}
-                            style={
-                                styles.messageAvatar
+                {
+                    !isMe && (
+
+                        <UserAvatar
+                            image={
+                                userImage
                             }
-                        />
-                    ) : (
-                        <DummyAvatar
                             size={40}
                         />
-                    ))}
+
+                    )
+                }
 
                 <View
                     style={
@@ -592,15 +566,19 @@ export default function MessageScreen() {
                     }
                 >
 
-                    {!isMe && (
-                        <Text
-                            style={
-                                styles.userName
-                            }
-                        >
-                            {userName}
-                        </Text>
-                    )}
+                    {
+                        !isMe && (
+
+                            <Text
+                                style={
+                                    styles.userName
+                                }
+                            >
+                                {userName}
+                            </Text>
+
+                        )
+                    }
 
                     <View
                         style={[
@@ -612,32 +590,44 @@ export default function MessageScreen() {
                         ]}
                     >
 
-                        {item.text && (
-                            <Text
-                                style={[
-                                    styles.messageText,
-                                    {
-                                        color:
-                                            isMe
-                                                ? '#FFF'
-                                                : '#111',
-                                    },
-                                ]}
-                            >
-                                {item.text}
-                            </Text>
-                        )}
+                        {
+                            item.text && (
 
-                        {item.image && (
-                            <Image
-                                source={{
-                                    uri: item.image,
-                                }}
-                                style={
-                                    styles.chatImage
-                                }
-                            />
-                        )}
+                                <Text
+                                    style={[
+                                        styles.messageText,
+
+                                        {
+                                            color:
+                                                isMe
+                                                    ? '#FFFFFF'
+                                                    : COLORS.textPrimary,
+                                        },
+                                    ]}
+                                >
+                                    {
+                                        item.text
+                                    }
+                                </Text>
+
+                            )
+                        }
+
+                        {
+                            item.image && (
+
+                                <Image
+                                    source={{
+                                        uri:
+                                            item.image,
+                                    }}
+                                    style={
+                                        styles.chatImage
+                                    }
+                                />
+
+                            )
+                        }
 
                     </View>
 
@@ -647,29 +637,32 @@ export default function MessageScreen() {
         );
     };
 
+    // ==========================
+    // UI
+    // ==========================
+
     return (
 
-        <SafeAreaView
-            style={styles.container}
-            edges={[
-                'top',
-                'bottom',
-            ]}
-        >
+        <AppContainer>
 
             <KeyboardAvoidingView
-                style={styles.flex}
+                style={
+                    styles.flex
+                }
                 behavior={
                     Platform.OS ===
-                        'ios'
+                    'ios'
                         ? 'padding'
                         : undefined
                 }
             >
 
                 {/* HEADER */}
+
                 <View
-                    style={styles.header}
+                    style={
+                        styles.header
+                    }
                 >
 
                     <BackButton
@@ -684,20 +677,12 @@ export default function MessageScreen() {
                         }
                     >
 
-                        {userImage ? (
-                            <Image
-                                source={{
-                                    uri: userImage,
-                                }}
-                                style={
-                                    styles.profileImage
-                                }
-                            />
-                        ) : (
-                            <DummyAvatar
-                                size={50}
-                            />
-                        )}
+                        <UserAvatar
+                            image={
+                                userImage
+                            }
+                            size={50}
+                        />
 
                         <View
                             style={
@@ -728,12 +713,13 @@ export default function MessageScreen() {
                 </View>
 
                 {/* CHAT */}
+
                 <FlatList
                     ref={flatListRef}
                     data={messages}
-                    keyExtractor={(
-                        item
-                    ) => item.id}
+                    keyExtractor={item =>
+                        item.id
+                    }
                     renderItem={
                         renderMessage
                     }
@@ -746,71 +732,84 @@ export default function MessageScreen() {
                 />
 
                 {/* IMAGE PREVIEW */}
-                {selectedImage && (
 
-                    <View
-                        style={
-                            styles.previewContainer
-                        }
-                    >
+                {
+                    selectedImage && (
 
-                        <Image
-                            source={{
-                                uri: selectedImage,
-                            }}
+                        <View
                             style={
-                                styles.previewImage
-                            }
-                        />
-
-                        <TouchableOpacity
-                            style={
-                                styles.closePreview
-                            }
-                            onPress={() =>
-                                setSelectedImage(
-                                    null
-                                )
+                                styles.previewContainer
                             }
                         >
 
-                            <Ionicons
-                                name="close"
-                                size={20}
-                                color="#FFF"
+                            <Image
+                                source={{
+                                    uri:
+                                        selectedImage,
+                                }}
+                                style={
+                                    styles.previewImage
+                                }
                             />
 
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                style={
+                                    styles.closePreview
+                                }
+                                onPress={() =>
+                                    setSelectedImage(
+                                        null
+                                    )
+                                }
+                            >
 
-                    </View>
-                )}
+                                <Ionicons
+                                    name="close"
+                                    size={20}
+                                    color="#FFFFFF"
+                                />
+
+                            </TouchableOpacity>
+
+                        </View>
+
+                    )
+                }
 
                 {/* UPLOADING */}
-                {uploading && (
 
-                    <View
-                        style={
-                            styles.uploadingContainer
-                        }
-                    >
+                {
+                    uploading && (
 
-                        <ActivityIndicator
-                            size="small"
-                            color="#6487E8"
-                        />
-
-                        <Text
+                        <View
                             style={
-                                styles.uploadingText
+                                styles.uploadingContainer
                             }
                         >
-                            Uploading image...
-                        </Text>
 
-                    </View>
-                )}
+                            <ActivityIndicator
+                                size="small"
+                                color={
+                                    COLORS.primary
+                                }
+                            />
+
+                            <Text
+                                style={
+                                    styles.uploadingText
+                                }
+                            >
+                                Uploading image...
+                            </Text>
+
+                        </View>
+
+                    )
+                }
 
                 {/* INPUT */}
+
                 <View
                     style={
                         styles.inputContainer
@@ -818,7 +817,10 @@ export default function MessageScreen() {
                 >
 
                     <TouchableOpacity
-                        onPress={pickImage}
+                        activeOpacity={0.8}
+                        onPress={
+                            pickImage
+                        }
                     >
 
                         <Ionicons
@@ -830,18 +832,16 @@ export default function MessageScreen() {
                     </TouchableOpacity>
 
                     <View
-                        style={styles.inputBox}
+                        style={
+                            styles.inputWrapper
+                        }
                     >
 
-                        <TextInput
+                        <AppInput
                             placeholder="Write message..."
-                            placeholderTextColor="#999"
                             value={message}
                             onChangeText={
                                 setMessage
-                            }
-                            style={
-                                styles.input
                             }
                             multiline
                         />
@@ -849,6 +849,7 @@ export default function MessageScreen() {
                     </View>
 
                     <TouchableOpacity
+                        activeOpacity={0.8}
                         style={
                             styles.sendButton
                         }
@@ -859,22 +860,24 @@ export default function MessageScreen() {
                         }
                     >
 
-                        {uploading ? (
+                        {
+                            uploading ? (
 
-                            <ActivityIndicator
-                                size="small"
-                                color="#FFF"
-                            />
+                                <ActivityIndicator
+                                    size="small"
+                                    color="#FFFFFF"
+                                />
 
-                        ) : (
+                            ) : (
 
-                            <Ionicons
-                                name="send"
-                                size={20}
-                                color="#FFF"
-                            />
+                                <Ionicons
+                                    name="send"
+                                    size={20}
+                                    color="#FFFFFF"
+                                />
 
-                        )}
+                            )
+                        }
 
                     </TouchableOpacity>
 
@@ -882,7 +885,7 @@ export default function MessageScreen() {
 
             </KeyboardAvoidingView>
 
-        </SafeAreaView>
+        </AppContainer>
     );
 }
 
@@ -892,41 +895,35 @@ const styles = StyleSheet.create({
         flex: 1,
     },
 
-    container: {
-        flex: 1,
-        backgroundColor:
-            '#F7F8FA',
-    },
-
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection:
+            'row',
+
+        alignItems:
+            'center',
+
         paddingHorizontal: 16,
         paddingVertical: 14,
-        backgroundColor: '#FFF',
+
+        backgroundColor:
+            COLORS.white,
+
         borderBottomWidth: 1,
+
         borderBottomColor:
             '#F1F1F1',
     },
 
     profileSection: {
         flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
+
+        flexDirection:
+            'row',
+
+        alignItems:
+            'center',
+
         marginLeft: 14,
-    },
-
-    profileImage: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-    },
-
-    dummyAvatar: {
-        backgroundColor:
-            '#6487E8',
-        justifyContent: 'center',
-        alignItems: 'center',
     },
 
     headerInfo: {
@@ -936,13 +933,18 @@ const styles = StyleSheet.create({
     headerName: {
         fontSize: 17,
         fontWeight: '700',
-        color: '#111827',
+
+        color:
+            COLORS.textPrimary,
     },
 
     activeText: {
-        fontSize: 13,
-        color: '#22C55E',
         marginTop: 2,
+
+        fontSize: 13,
+
+        color:
+            '#22C55E',
     },
 
     chatContainer: {
@@ -952,9 +954,14 @@ const styles = StyleSheet.create({
 
     messageWrapper: {
         paddingHorizontal: 16,
+
         marginBottom: 18,
-        flexDirection: 'row',
-        alignItems: 'flex-end',
+
+        flexDirection:
+            'row',
+
+        alignItems:
+            'flex-end',
     },
 
     myWrapper: {
@@ -969,36 +976,37 @@ const styles = StyleSheet.create({
 
     messageContent: {
         maxWidth: '78%',
-    },
 
-    messageAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginRight: 10,
+        marginLeft: 10,
     },
 
     userName: {
+        marginBottom: 6,
+
         fontSize: 13,
         fontWeight: '700',
+
         color: '#555',
-        marginBottom: 6,
     },
 
     messageBubble: {
         paddingHorizontal: 16,
         paddingVertical: 12,
+
         borderRadius: 18,
     },
 
     myMessage: {
         backgroundColor:
-            '#6487E8',
+            COLORS.primary,
+
         borderBottomRightRadius: 6,
     },
 
     otherMessage: {
-        backgroundColor: '#FFF',
+        backgroundColor:
+            COLORS.white,
+
         borderBottomLeftRadius: 6,
     },
 
@@ -1010,82 +1018,106 @@ const styles = StyleSheet.create({
     chatImage: {
         width: 220,
         height: 220,
+
         borderRadius: 16,
+
         marginTop: 6,
     },
 
     previewContainer: {
         marginLeft: 16,
         marginBottom: 10,
+
         position: 'relative',
     },
 
     previewImage: {
         width: 120,
         height: 120,
+
         borderRadius: 16,
     },
 
     closePreview: {
-        position: 'absolute',
-        top: -8,
-        right: -8,
         width: 28,
         height: 28,
+
         borderRadius: 14,
+
         backgroundColor:
-            '#000',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
+            '#000000',
 
-    inputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        backgroundColor: '#FFF',
-        borderTopWidth: 1,
-        borderTopColor: '#EEE',
-    },
+        justifyContent:
+            'center',
 
-    inputBox: {
-        flex: 1,
-        minHeight: 50,
-        backgroundColor:
-            '#F2F3F5',
-        borderRadius: 16,
-        justifyContent: 'center',
-        paddingHorizontal: 14,
-        marginHorizontal: 12,
-    },
+        alignItems:
+            'center',
 
-    input: {
-        fontSize: 16,
-        color: '#111',
-        paddingVertical: 10,
-    },
+        position: 'absolute',
 
-    sendButton: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor:
-            '#6487E8',
-        justifyContent: 'center',
-        alignItems: 'center',
+        top: -8,
+        right: -8,
     },
 
     uploadingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        flexDirection:
+            'row',
+
+        alignItems:
+            'center',
+
+        justifyContent:
+            'center',
+
         marginBottom: 10,
     },
 
     uploadingText: {
         marginLeft: 10,
-        color: '#555',
+
         fontSize: 14,
+
+        color: '#555',
     },
+
+    inputContainer: {
+        flexDirection:
+            'row',
+
+        alignItems:
+            'center',
+
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+
+        backgroundColor:
+            COLORS.white,
+
+        borderTopWidth: 1,
+
+        borderTopColor:
+            '#EEEEEE',
+    },
+
+    inputWrapper: {
+        flex: 1,
+        marginHorizontal: 12,
+    },
+
+    sendButton: {
+        width: 48,
+        height: 48,
+
+        borderRadius: 24,
+
+        backgroundColor:
+            COLORS.primary,
+
+        justifyContent:
+            'center',
+
+        alignItems:
+            'center',
+    },
+
 });

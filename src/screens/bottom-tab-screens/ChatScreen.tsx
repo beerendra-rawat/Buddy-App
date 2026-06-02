@@ -1,5 +1,6 @@
 import React, {
     useEffect,
+    useMemo,
     useState,
 } from 'react';
 
@@ -8,9 +9,7 @@ import {
     Text,
     StyleSheet,
     FlatList,
-    Image,
     TouchableOpacity,
-    ActivityIndicator,
     Alert,
 } from 'react-native';
 
@@ -29,15 +28,6 @@ import {
 } from 'firebase/firestore';
 
 import {
-    SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-    auth,
-    db,
-} from '../../services/firebase';
-
-import {
     useNavigation,
 } from '@react-navigation/native';
 
@@ -45,9 +35,26 @@ import {
     Ionicons,
 } from '@expo/vector-icons';
 
-// ==========================
-// TYPES
-// ==========================
+import {
+    auth,
+    db,
+} from '../../services/firebase';
+
+import AppContainer from
+    '../../components/common/AppContainer';
+
+import SkeletonLoader from
+    '../../components/common/SkeletonLoader';
+
+import UserAvatar from
+    '../../components/common/UserAvatar';
+
+import ChatItem from
+    '../../components/chat/ChatItem';
+
+import {
+    COLORS,
+} from '../../constants/colors';
 
 type MediaType = {
     type: 'image' | 'video';
@@ -75,9 +82,11 @@ type ChatType = {
 
 export default function ChatScreen() {
 
-    const navigation = useNavigation<any>();
+    const navigation =
+        useNavigation<any>();
 
-    const currentUser = auth.currentUser;
+    const currentUser =
+        auth.currentUser;
 
     const [stories, setStories] =
         useState<StoryType[]>([]);
@@ -89,73 +98,78 @@ export default function ChatScreen() {
         useState(true);
 
     // ==========================
-    // GET STORIES
+    // STORIES
     // ==========================
 
     useEffect(() => {
 
         const q = query(
             collection(db, 'stories'),
-            orderBy('createdAt', 'desc')
+            orderBy(
+                'createdAt',
+                'desc'
+            )
         );
 
-        const unsubscribe = onSnapshot(
-            q,
-            async snapshot => {
+        const unsubscribe =
+            onSnapshot(
+                q,
+                async snapshot => {
 
-                const now = Date.now();
+                    const now =
+                        Date.now();
 
-                const tempStories:
-                    StoryType[] = [];
+                    const tempStories:
+                        StoryType[] = [];
 
-                for (const item of snapshot.docs) {
+                    for (const item of snapshot.docs) {
 
-                    const data = item.data();
+                        const data =
+                            item.data();
 
-                    const expireTime =
-                        data?.expiresAt
-                            ?.toDate()
-                            ?.getTime?.() || 0;
+                        const expireTime =
+                            data?.expiresAt
+                                ?.toDate()
+                                ?.getTime?.() || 0;
 
-                    // AUTO DELETE AFTER 24 HOURS
+                        if (
+                            expireTime > now
+                        ) {
 
-                    if (
-                        expireTime > now
-                    ) {
+                            tempStories.push({
+                                id: item.id,
 
-                        tempStories.push({
-                            id: item.id,
-                            userId:
-                                data.userId,
+                                userId:
+                                    data.userId,
 
-                            userName:
-                                data.userName,
+                                userName:
+                                    data.userName,
 
-                            userImage:
-                                data.userImage,
+                                userImage:
+                                    data.userImage,
 
-                            media:
-                                data.media ||
-                                [],
-                        });
+                                media:
+                                    data.media ||
+                                    [],
+                            });
 
-                    } else {
+                        } else {
 
-                        await deleteDoc(
-                            doc(
-                                db,
-                                'stories',
-                                item.id
-                            )
-                        );
+                            await deleteDoc(
+                                doc(
+                                    db,
+                                    'stories',
+                                    item.id
+                                )
+                            );
+                        }
                     }
-                }
 
-                setStories(
-                    tempStories
-                );
-            }
-        );
+                    setStories(
+                        tempStories
+                    );
+                }
+            );
 
         return () =>
             unsubscribe();
@@ -163,13 +177,14 @@ export default function ChatScreen() {
     }, []);
 
     // ==========================
-    // GET CHATS
+    // CHATS
     // ==========================
 
     useEffect(() => {
 
-        if (!currentUser?.uid)
+        if (!currentUser?.uid) {
             return;
+        }
 
         const q = query(
             collection(db, 'chats'),
@@ -187,8 +202,7 @@ export default function ChatScreen() {
                     try {
 
                         const tempChats:
-                            ChatType[] =
-                                [];
+                            ChatType[] = [];
 
                         for (const chatDoc of snapshot.docs) {
 
@@ -212,10 +226,9 @@ export default function ChatScreen() {
                                         currentUser.uid
                                 );
 
-                            if (
-                                !receiverId
-                            )
+                            if (!receiverId) {
                                 continue;
+                            }
 
                             const userSnap =
                                 await getDoc(
@@ -228,8 +241,9 @@ export default function ChatScreen() {
 
                             if (
                                 !userSnap.exists()
-                            )
+                            ) {
                                 continue;
+                            }
 
                             const userData =
                                 userSnap.data();
@@ -266,10 +280,6 @@ export default function ChatScreen() {
                             tempChats
                         );
 
-                        setLoading(
-                            false
-                        );
-
                     } catch (error) {
 
                         console.log(
@@ -277,9 +287,9 @@ export default function ChatScreen() {
                             error
                         );
 
-                        setLoading(
-                            false
-                        );
+                    } finally {
+
+                        setLoading(false);
                     }
                 }
             );
@@ -313,16 +323,14 @@ export default function ChatScreen() {
 
                 if (
                     result.canceled
-                )
+                ) {
                     return;
+                }
 
                 const media:
                     MediaType[] = [];
 
                 for (const asset of result.assets) {
-
-                    // TEMP URI
-                    // Replace with Cloudinary URL later
 
                     media.push({
                         type:
@@ -421,79 +429,51 @@ export default function ChatScreen() {
         };
 
     // ==========================
-    // FORMAT TIME
+    // STORY DATA
     // ==========================
 
-    const formatTime = (
-        time: any
-    ) => {
+    const storyData =
+        useMemo(() => {
 
-        if (!time) return '';
+            return [
 
-        const date =
-            time.toDate();
+                {
+                    id:
+                        stories.find(
+                            item =>
+                                item.userId ===
+                                currentUser?.uid
+                        )?.id ||
+                        'myStory',
 
-        return date.toLocaleTimeString(
-            [],
-            {
-                hour: '2-digit',
-                minute: '2-digit',
-            }
-        );
-    };
+                    userId:
+                        currentUser?.uid ||
+                        '',
 
-    // ==========================
-    // PROFILE IMAGE
-    // ==========================
+                    userName:
+                        currentUser?.displayName ||
+                        'You',
 
-    const renderProfileImage =
-        (
-            image?: string,
-            size: number = 65
-        ) => {
+                    userImage:
+                        currentUser?.photoURL ||
+                        '',
 
-            if (image) {
+                    media:
+                        stories.find(
+                            item =>
+                                item.userId ===
+                                currentUser?.uid
+                        )?.media || [],
+                },
 
-                return (
-                    <Image
-                        source={{
-                            uri: image,
-                        }}
-                        style={{
-                            width: size,
-                            height: size,
-                            borderRadius:
-                                size / 2,
-                        }}
-                    />
-                );
-            }
+                ...stories.filter(
+                    item =>
+                        item.userId !==
+                        currentUser?.uid
+                ),
+            ];
 
-            return (
-
-                <View
-                    style={[
-                        styles.dummyImage,
-                        {
-                            width: size,
-                            height: size,
-                            borderRadius:
-                                size / 2,
-                        },
-                    ]}
-                >
-
-                    <Ionicons
-                        name="person"
-                        size={
-                            size / 2
-                        }
-                        color="#FFF"
-                    />
-
-                </View>
-            );
-        };
+        }, [stories]);
 
     // ==========================
     // STORY ITEM
@@ -512,29 +492,19 @@ export default function ChatScreen() {
         return (
 
             <TouchableOpacity
-                style={
-                    styles.storyItem
-                }
                 activeOpacity={0.8}
+                style={styles.storyItem}
                 onPress={() => {
 
-                    // MY STORY
+                    if (
+                        isMine &&
+                        item.media.length === 0
+                    ) {
 
-                    if (isMine) {
+                        pickStory();
 
-                        // NO STORY
-
-                        if (
-                            item.media.length === 0
-                        ) {
-
-                            pickStory();
-
-                            return;
-                        }
+                        return;
                     }
-
-                    // OPEN STORY
 
                     navigation.navigate(
                         'Story',
@@ -548,8 +518,6 @@ export default function ChatScreen() {
                     );
                 }}
                 onLongPress={() => {
-
-                    // DELETE OWN STORY
 
                     if (
                         isMine &&
@@ -569,8 +537,6 @@ export default function ChatScreen() {
                     }
                 >
 
-                    {/* STORY BORDER */}
-
                     <View
                         style={[
                             styles.storyBorder,
@@ -579,183 +545,56 @@ export default function ChatScreen() {
                                 item.media
                                     .length === 0 && {
                                     borderColor:
-                                        '#DDD',
+                                        '#D1D5DB',
                                 },
                         ]}
                     >
 
-                        {/* USER IMAGE */}
+                        <UserAvatar
+                            image={
+                                item.userImage
+                            }
+                            size={68}
+                        />
 
-                        {item.userImage ? (
+                    </View>
 
-                            <Image
-                                source={{
-                                    uri:
-                                        item.userImage,
-                                }}
+                    {
+                        isMine && (
+
+                            <TouchableOpacity
+                                activeOpacity={0.8}
                                 style={
-                                    styles.storyImage
+                                    styles.addButton
                                 }
-                            />
-
-                        ) : (
-
-                            <View
-                                style={
-                                    styles.dummyImage
+                                onPress={
+                                    pickStory
                                 }
                             >
 
                                 <Ionicons
-                                    name="person"
-                                    size={32}
-                                    color="#FFF"
+                                    name="add"
+                                    size={16}
+                                    color="#FFFFFF"
                                 />
 
-                            </View>
+                            </TouchableOpacity>
 
-                        )}
-
-                    </View>
-
-                    {/* ADD STORY BUTTON */}
-
-                    {isMine && (
-
-                        <TouchableOpacity
-                            style={
-                                styles.addStoryBtn
-                            }
-                            onPress={
-                                pickStory
-                            }
-                        >
-
-                            <Ionicons
-                                name="add"
-                                size={16}
-                                color="#FFF"
-                            />
-
-                        </TouchableOpacity>
-
-                    )}
+                        )
+                    }
 
                 </View>
-
-                {/* STORY NAME */}
 
                 <Text
-                    style={
-                        styles.storyName
-                    }
                     numberOfLines={1}
+                    style={styles.storyName}
                 >
-                    {isMine
-                        ? 'Your Story'
-                        : item.userName}
-                </Text>
-
-            </TouchableOpacity>
-        );
-    };
-
-    // ==========================
-    // CHAT ITEM
-    // ==========================
-
-    const renderChatItem = ({
-        item,
-    }: {
-        item: ChatType;
-    }) => {
-
-        return (
-
-            <TouchableOpacity
-                style={
-                    styles.chatItem
-                }
-                activeOpacity={0.8}
-                onPress={() =>
-                    navigation.navigate(
-                        'Message',
-                        {
-                            receiverId:
-                                item.userId,
-
-                            receiverName:
-                                item.name,
-
-                            receiverImage:
-                                item.image,
-                        }
-                    )
-                }
-            >
-
-                <View>
-
-                    {renderProfileImage(
-                        item.image,
-                        65
-                    )}
-
-                    {item.online && (
-
-                        <View
-                            style={
-                                styles.onlineDot
-                            }
-                        />
-
-                    )}
-
-                </View>
-
-                <View
-                    style={
-                        styles.chatContent
+                    {
+                        isMine
+                            ? 'Your Story'
+                            : item.userName
                     }
-                >
-
-                    <View
-                        style={
-                            styles.topRow
-                        }
-                    >
-
-                        <Text
-                            style={
-                                styles.chatName
-                            }
-                            numberOfLines={1}
-                        >
-                            {item.name}
-                        </Text>
-
-                        <Text
-                            style={
-                                styles.chatTime
-                            }
-                        >
-                            {formatTime(
-                                item.lastMessageTime
-                            )}
-                        </Text>
-
-                    </View>
-
-                    <Text
-                        style={
-                            styles.chatMessage
-                        }
-                        numberOfLines={1}
-                    >
-                        {item.lastMessage}
-                    </Text>
-
-                </View>
+                </Text>
 
             </TouchableOpacity>
         );
@@ -766,22 +605,7 @@ export default function ChatScreen() {
     // ==========================
 
     if (loading) {
-
-        return (
-
-            <View
-                style={
-                    styles.loader
-                }
-            >
-
-                <ActivityIndicator
-                    size="large"
-                    color="#5B60FF"
-                />
-
-            </View>
-        );
+        return <SkeletonLoader />;
     }
 
     // ==========================
@@ -790,75 +614,26 @@ export default function ChatScreen() {
 
     return (
 
-        <SafeAreaView
-            style={
-                styles.container
-            }
-        >
+        <AppContainer>
 
             {/* STORIES */}
 
-            <View
-                style={{
-                    paddingTop: 14,
-                    height: 115,
-                }}
-            >
+            <View style={styles.storyContainer}>
 
                 <FlatList
                     horizontal
-                    showsHorizontalScrollIndicator={
-                        false
+                    data={storyData}
+                    renderItem={
+                        renderStoryItem
                     }
-                    contentContainerStyle={{
-                        paddingHorizontal: 16,
-                    }}
-                    data={[
-
-                        // MY STORY
-
-                        {
-                            id:
-                                stories.find(
-                                    item =>
-                                        item.userId ===
-                                        currentUser?.uid
-                                )?.id ||
-                                'myStory',
-
-                            userId:
-                                currentUser?.uid ||
-                                '',
-
-                            userName:
-                                currentUser?.displayName ||
-                                'You',
-
-                            userImage:
-                                currentUser?.photoURL ||
-                                '',
-
-                            media:
-                                stories.find(
-                                    item =>
-                                        item.userId ===
-                                        currentUser?.uid
-                                )?.media || [],
-                        },
-
-                        // OTHER STORIES
-
-                        ...stories.filter(
-                            item =>
-                                item.userId !==
-                                currentUser?.uid
-                        ),
-                    ]}
                     keyExtractor={item =>
                         item.id
                     }
-                    renderItem={
-                        renderStoryItem
+                    showsHorizontalScrollIndicator={
+                        false
+                    }
+                    contentContainerStyle={
+                        styles.storyList
                     }
                 />
 
@@ -871,39 +646,31 @@ export default function ChatScreen() {
                 keyExtractor={item =>
                     item.id
                 }
-                renderItem={
-                    renderChatItem
-                }
+                renderItem={({ item }) => (
+                    <ChatItem item={item} />
+                )}
                 showsVerticalScrollIndicator={
                     false
                 }
-                contentContainerStyle={{
-                    paddingHorizontal: 16,
-                    paddingTop: 20,
-                    paddingBottom: 120,
-                }}
+                contentContainerStyle={
+                    styles.chatList
+                }
             />
 
-        </SafeAreaView>
+        </AppContainer>
     );
 }
 
 const styles = StyleSheet.create({
 
-    container: {
-        flex: 1,
-        backgroundColor: '#FFF',
+    storyContainer: {
+        height: 118,
+        paddingTop: 14,
     },
 
-    loader: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+    storyList: {
+        paddingHorizontal: 16,
     },
-
-    // ==========================
-    // STORIES
-    // ==========================
 
     storyItem: {
         width: 84,
@@ -918,105 +685,54 @@ const styles = StyleSheet.create({
     storyBorder: {
         width: 76,
         height: 76,
+
         borderRadius: 38,
+
         borderWidth: 2.5,
+
         borderColor: '#FF006A',
+
         justifyContent: 'center',
         alignItems: 'center',
     },
 
-    storyImage: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
+    addButton: {
+        width: 24,
+        height: 24,
+
+        borderRadius: 12,
+
+        backgroundColor:
+            COLORS.primary,
+
+        justifyContent: 'center',
+        alignItems: 'center',
+
+        borderWidth: 2,
+        borderColor:
+            COLORS.white,
+
+        position: 'absolute',
+
+        right: 0,
+        bottom: 0,
     },
 
     storyName: {
         marginTop: 6,
+
         fontSize: 12,
-        color: '#444',
+
+        color:
+            COLORS.textPrimary,
+
         maxWidth: 74,
     },
 
-    addStoryBtn: {
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: '#5B60FF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#FFF',
-    },
-
-    // ==========================
-    // CHAT
-    // ==========================
-
-    chatItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 22,
-    },
-
-    chatContent: {
-        flex: 1,
-        marginLeft: 14,
-    },
-
-    topRow: {
-        flexDirection: 'row',
-        justifyContent:
-            'space-between',
-        alignItems: 'center',
-    },
-
-    chatName: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#111',
-        flex: 1,
-        marginRight: 8,
-    },
-
-    chatTime: {
-        fontSize: 12,
-        color: '#999',
-    },
-
-    chatMessage: {
-        marginTop: 4,
-        fontSize: 14,
-        color: '#777',
-    },
-
-    onlineDot: {
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        backgroundColor: '#34C759',
-        borderWidth: 2,
-        borderColor: '#FFF',
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-    },
-
-    // ==========================
-    // DUMMY IMAGE
-    // ==========================
-
-    dummyImage: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
-        backgroundColor: '#7B61FF',
-        justifyContent: 'center',
-        alignItems: 'center',
+    chatList: {
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: 120,
     },
 
 });
-

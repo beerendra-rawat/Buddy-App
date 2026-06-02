@@ -1,4 +1,4 @@
-import {
+import React, {
     useEffect,
     useState,
 } from 'react';
@@ -6,21 +6,17 @@ import {
 import {
     View,
     Text,
-    Image,
-    TextInput,
     Alert,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
-    StatusBar,
-    ActivityIndicator,
 } from 'react-native';
-
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as ImagePicker from 'expo-image-picker';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+    MaterialIcons,
+} from '@expo/vector-icons';
 
 import {
     onAuthStateChanged,
@@ -38,8 +34,24 @@ import {
     db,
 } from '../../services/firebase';
 
-import { COLORS } from '../../constants/colors';
-import SecondaryButton from '../../components/SecondaryButton';
+import AppContainer from
+    '../../components/common/AppContainer';
+
+import AppInput from
+    '../../components/common/AppInput';
+
+import AppButton from
+    '../../components/common/AppButton';
+
+import UserAvatar from
+    '../../components/common/UserAvatar';
+
+import SkeletonLoader from
+    '../../components/common/SkeletonLoader';
+
+import {
+    COLORS,
+} from '../../constants/colors';
 
 export default function ProfileScreen() {
 
@@ -47,6 +59,9 @@ export default function ProfileScreen() {
         useState(true);
 
     const [isEditing, setIsEditing] =
+        useState(false);
+
+    const [saving, setSaving] =
         useState(false);
 
     const [userData, setUserData] =
@@ -57,13 +72,16 @@ export default function ProfileScreen() {
             photoURL: '',
         });
 
+    // ==========================
     // GET USER DATA
+    // ==========================
+
     useEffect(() => {
 
         const unsubscribe =
             onAuthStateChanged(
                 auth,
-                async (user) => {
+                async user => {
 
                     if (!user) {
 
@@ -82,7 +100,9 @@ export default function ProfileScreen() {
                             );
 
                         const userSnap =
-                            await getDoc(userRef);
+                            await getDoc(
+                                userRef
+                            );
 
                         if (
                             userSnap.exists()
@@ -93,22 +113,28 @@ export default function ProfileScreen() {
 
                             setUserData({
                                 username:
-                                    data.name || '',
+                                    data.name ||
+                                    '',
 
                                 email:
-                                    data.email || '',
+                                    data.email ||
+                                    '',
 
                                 bio:
-                                    data.bio || '',
+                                    data.bio ||
+                                    '',
 
                                 photoURL:
-                                    data.photoURL || '',
+                                    data.photoURL ||
+                                    '',
                             });
                         }
 
                     } catch (error) {
 
-                        console.log(error);
+                        console.log(
+                            error
+                        );
 
                     } finally {
 
@@ -121,7 +147,10 @@ export default function ProfileScreen() {
 
     }, []);
 
-    // HANDLE INPUT CHANGE
+    // ==========================
+    // HANDLE CHANGE
+    // ==========================
+
     const handleChange = (
         key: string,
         value: string
@@ -133,48 +162,71 @@ export default function ProfileScreen() {
         }));
     };
 
+    // ==========================
     // PICK IMAGE
+    // ==========================
+
     const pickImage =
         async () => {
 
-            const permission =
-                await ImagePicker.requestMediaLibraryPermissionsAsync();
+            try {
 
-            if (!permission.granted) {
+                const permission =
+                    await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-                Alert.alert(
-                    'Permission Required'
-                );
+                if (
+                    !permission.granted
+                ) {
 
-                return;
-            }
+                    Alert.alert(
+                        'Permission Required'
+                    );
 
-            const result =
-                await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes:
-                        ImagePicker.MediaTypeOptions.Images,
+                    return;
+                }
 
-                    allowsEditing: true,
+                const result =
+                    await ImagePicker.launchImageLibraryAsync(
+                        {
+                            mediaTypes:
+                                ImagePicker.MediaTypeOptions.Images,
 
-                    aspect: [1, 1],
+                            allowsEditing:
+                                true,
 
-                    quality: 1,
-                });
+                            aspect: [1, 1],
 
-            if (!result.canceled) {
+                            quality: 1,
+                        }
+                    );
 
-                handleChange(
-                    'photoURL',
-                    result.assets[0].uri
-                );
+                if (
+                    !result.canceled
+                ) {
+
+                    handleChange(
+                        'photoURL',
+                        result.assets[0]
+                            .uri
+                    );
+                }
+
+            } catch (error) {
+
+                console.log(error);
             }
         };
 
+    // ==========================
     // UPDATE PROFILE
+    // ==========================
+
     const handleUpdateProfile =
         async () => {
 
             try {
+
+                setSaving(true);
 
                 const currentUser =
                     auth.currentUser;
@@ -216,10 +268,17 @@ export default function ProfileScreen() {
                     'Error',
                     'Failed to update profile'
                 );
+
+            } finally {
+
+                setSaving(false);
             }
         };
 
+    // ==========================
     // LOGOUT
+    // ==========================
+
     const handleLogout =
         async () => {
 
@@ -233,54 +292,48 @@ export default function ProfileScreen() {
             }
         };
 
+    // ==========================
+    // LOADING
+    // ==========================
+
     if (loading) {
-
-        return (
-
-            <SafeAreaView
-                style={
-                    styles.loaderContainer
-                }
-            >
-
-                <ActivityIndicator
-                    size="large"
-                    color={COLORS.primary}
-                />
-
-            </SafeAreaView>
-        );
+        return <SkeletonLoader />;
     }
+
+    // ==========================
+    // UI
+    // ==========================
 
     return (
 
-        <SafeAreaView
-            style={styles.container}
-            edges={['top']}
-        >
+        <AppContainer>
 
-            <StatusBar
-                barStyle="dark-content"
-                backgroundColor={
-                    COLORS.background
+            {/* HEADER */}
+
+            <View
+                style={
+                    styles.header
                 }
-            />
-
-            {/* EDIT BUTTON */}
-            <View style={styles.topContainer}>
+            >
 
                 <TouchableOpacity
                     activeOpacity={0.8}
-                    style={styles.editButton}
+                    style={
+                        styles.editButton
+                    }
                     onPress={() => {
 
-                        if (isEditing) {
+                        if (
+                            isEditing
+                        ) {
 
                             handleUpdateProfile();
 
                         } else {
 
-                            setIsEditing(true);
+                            setIsEditing(
+                                true
+                            );
                         }
                     }}
                 >
@@ -300,47 +353,46 @@ export default function ProfileScreen() {
             </View>
 
             <ScrollView
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={
+                    false
+                }
                 contentContainerStyle={
-                    styles.scrollContainer
+                    styles.scrollContent
                 }
             >
 
                 {/* PROFILE CARD */}
-                <View style={styles.profileCard}>
 
-                    {/* PROFILE IMAGE */}
+                <View
+                    style={
+                        styles.profileCard
+                    }
+                >
+
+                    {/* IMAGE */}
+
                     <TouchableOpacity
                         activeOpacity={0.9}
-                        disabled={!isEditing}
-                        onPress={pickImage}
+                        disabled={
+                            !isEditing
+                        }
+                        onPress={
+                            pickImage
+                        }
                     >
 
-                        <View style={styles.imageWrapper}>
-
-                            {
-                                userData.photoURL ? (
-
-                                    <Image
-                                        source={{
-                                            uri: userData.photoURL,
-                                        }}
-                                        style={styles.profileImage}
-                                    />
-
-                                ) : (
-
-                                    <View style={styles.dummyAvatar}>
-
-                                        <MaterialIcons
-                                            name="person"
-                                            size={55}
-                                            color="#FFFFFF"
-                                        />
-
-                                    </View>
-                                )
+                        <View
+                            style={
+                                styles.imageWrapper
                             }
+                        >
+
+                            <UserAvatar
+                                image={
+                                    userData.photoURL
+                                }
+                                size={130}
+                            />
 
                             {
                                 isEditing && (
@@ -366,10 +418,12 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
 
                     {/* USERNAME */}
+
                     {
                         isEditing ? (
 
-                            <TextInput
+                            <AppInput
+                                placeholder="Username"
                                 value={
                                     userData.username
                                 }
@@ -379,16 +433,15 @@ export default function ProfileScreen() {
                                         text
                                     )
                                 }
-                                placeholder="Username"
-                                placeholderTextColor={
-                                    COLORS.textSecondary
-                                }
-                                style={styles.input}
                             />
 
                         ) : (
 
-                            <Text style={styles.name}>
+                            <Text
+                                style={
+                                    styles.name
+                                }
+                            >
                                 {
                                     userData.username
                                 }
@@ -397,16 +450,25 @@ export default function ProfileScreen() {
                     }
 
                     {/* EMAIL */}
-                    <Text style={styles.email}>
-                        {userData.email}
+
+                    <Text
+                        style={
+                            styles.email
+                        }
+                    >
+                        {
+                            userData.email
+                        }
                     </Text>
 
                     {/* BIO */}
+
                     {
                         isEditing ? (
 
-                            <TextInput
+                            <AppInput
                                 multiline
+                                placeholder="Write your bio..."
                                 value={
                                     userData.bio
                                 }
@@ -416,10 +478,6 @@ export default function ProfileScreen() {
                                         text
                                     )
                                 }
-                                placeholder="Write your bio..."
-                                placeholderTextColor={
-                                    COLORS.textSecondary
-                                }
                                 style={
                                     styles.bioInput
                                 }
@@ -427,7 +485,11 @@ export default function ProfileScreen() {
 
                         ) : (
 
-                            <Text style={styles.bio}>
+                            <Text
+                                style={
+                                    styles.bio
+                                }
+                            >
                                 {
                                     userData.bio ||
                                     'Add your bio here...'
@@ -441,38 +503,30 @@ export default function ProfileScreen() {
             </ScrollView>
 
             {/* LOGOUT */}
-            <View style={styles.logoutContainer}>
 
-                <SecondaryButton
+            <View
+                style={
+                    styles.logoutContainer
+                }
+            >
+
+                <AppButton
                     title="Logout"
-                    onPress={handleLogout}
+                    onPress={
+                        handleLogout
+                    }
+                    loading={saving}
                 />
 
             </View>
 
-        </SafeAreaView>
+        </AppContainer>
     );
 }
 
 const styles = StyleSheet.create({
 
-    container: {
-        flex: 1,
-        backgroundColor:
-            COLORS.background,
-    },
-
-    loaderContainer: {
-        flex: 1,
-
-        justifyContent: 'center',
-        alignItems: 'center',
-
-        backgroundColor:
-            COLORS.background,
-    },
-
-    topContainer: {
+    header: {
         paddingHorizontal: 20,
         paddingTop: 10,
 
@@ -488,16 +542,18 @@ const styles = StyleSheet.create({
         backgroundColor:
             COLORS.primary,
 
-        justifyContent: 'center',
-        alignItems: 'center',
+        justifyContent:
+            'center',
 
-        elevation: 5,
+        alignItems:
+            'center',
     },
 
-    scrollContainer: {
+    scrollContent: {
         flexGrow: 1,
 
-        justifyContent: 'center',
+        justifyContent:
+            'center',
 
         paddingHorizontal: 20,
 
@@ -517,48 +573,19 @@ const styles = StyleSheet.create({
 
         alignItems: 'center',
 
-        elevation: 4,
-    },
+        borderWidth: 1,
 
-    dummyAvatar: {
-        width: 130,
-        height: 130,
-
-        borderRadius: 65,
-
-        backgroundColor: COLORS.primary,
-
-        justifyContent: 'center',
-        alignItems: 'center',
-
-        borderWidth: 4,
-        borderColor: COLORS.lightBlue,
+        borderColor:
+            COLORS.border,
     },
 
     imageWrapper: {
         position: 'relative',
 
-        marginBottom: 18,
-    },
-
-    profileImage: {
-        width: 130,
-        height: 130,
-
-        borderRadius: 65,
-
-        borderWidth: 4,
-
-        borderColor:
-            COLORS.lightBlue,
+        marginBottom: 20,
     },
 
     cameraButton: {
-        position: 'absolute',
-
-        bottom: 4,
-        right: 4,
-
         width: 38,
         height: 38,
 
@@ -567,8 +594,16 @@ const styles = StyleSheet.create({
         backgroundColor:
             COLORS.primary,
 
-        justifyContent: 'center',
-        alignItems: 'center',
+        justifyContent:
+            'center',
+
+        alignItems:
+            'center',
+
+        position: 'absolute',
+
+        right: 0,
+        bottom: 0,
 
         borderWidth: 3,
 
@@ -599,6 +634,7 @@ const styles = StyleSheet.create({
         marginTop: 18,
 
         fontSize: 15,
+
         lineHeight: 24,
 
         textAlign: 'center',
@@ -607,58 +643,13 @@ const styles = StyleSheet.create({
             COLORS.textSecondary,
     },
 
-    input: {
-        width: '100%',
-
-        height: 56,
-
-        marginTop: 18,
-
-        borderRadius: 18,
-
-        backgroundColor:
-            COLORS.inputBg,
-
-        borderWidth: 1,
-
-        borderColor:
-            COLORS.border,
-
-        paddingHorizontal: 18,
-
-        fontSize: 16,
-        fontWeight: '600',
-
-        color:
-            COLORS.textPrimary,
-    },
-
     bioInput: {
-        width: '100%',
-
         minHeight: 110,
 
         marginTop: 18,
 
-        borderRadius: 18,
-
-        backgroundColor:
-            COLORS.inputBg,
-
-        borderWidth: 1,
-
-        borderColor:
-            COLORS.border,
-
-        paddingHorizontal: 18,
-        paddingTop: 16,
-
-        fontSize: 15,
-
-        color:
-            COLORS.textPrimary,
-
-        textAlignVertical: 'top',
+        textAlignVertical:
+            'top',
     },
 
     logoutContainer: {
@@ -667,14 +658,7 @@ const styles = StyleSheet.create({
         left: 20,
         right: 20,
 
-        bottom: 150,
+        bottom: 120,
     },
 
-    logoutButtonWrapper: {
-        borderRadius: 18,
-
-        overflow: 'hidden',
-
-        backgroundColor: '#EF4444',
-    },
 });

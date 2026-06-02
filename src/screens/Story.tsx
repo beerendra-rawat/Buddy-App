@@ -1,5 +1,4 @@
-import React,
-{
+import React, {
     useEffect,
     useRef,
     useState,
@@ -12,22 +11,42 @@ import {
     ActivityIndicator,
     StyleSheet,
     Animated,
+    TouchableOpacity,
 } from 'react-native';
 
-import Video from 'react-native-video';
+import Video from
+    'react-native-video';
+
+import {
+    Ionicons,
+} from '@expo/vector-icons';
+
+import AppContainer from
+    '../components/common/AppContainer';
+
+import {
+    COLORS,
+} from '../constants/colors';
 
 const {
     width,
     height,
 } = Dimensions.get('window');
 
-export default function Story({
+type StoryItem = {
+    type: 'image' | 'video';
+    url: string;
+    duration?: number;
+};
+
+export default function StoryScreen({
     route,
     navigation,
 }: any) {
 
-    const { stories = [] } =
-        route.params || {};
+    const {
+        stories = [],
+    } = route.params || {};
 
     const [index, setIndex] =
         useState(0);
@@ -38,7 +57,7 @@ export default function Story({
         ).current;
 
     // ==========================
-    // EMPTY
+    // EMPTY STATE
     // ==========================
 
     if (
@@ -56,15 +75,16 @@ export default function Story({
 
                 <ActivityIndicator
                     size="large"
-                    color="#FFF"
+                    color="#FFFFFF"
                 />
 
             </View>
         );
     }
 
-    const currentStory =
-        stories[index];
+    const currentStory:
+        StoryItem =
+            stories[index];
 
     // ==========================
     // ANIMATION
@@ -75,14 +95,18 @@ export default function Story({
         progress.setValue(0);
 
         const duration =
-            (currentStory?.duration ||
-                5) * 1000;
+            (
+                currentStory?.duration ||
+                5
+            ) * 1000;
 
         Animated.timing(
             progress,
             {
                 toValue: 1,
+
                 duration,
+
                 useNativeDriver:
                     false,
             }
@@ -120,121 +144,219 @@ export default function Story({
     }, [index]);
 
     // ==========================
+    // NEXT STORY
+    // ==========================
+
+    const nextStory =
+        () => {
+
+            if (
+                index <
+                stories.length - 1
+            ) {
+
+                setIndex(
+                    prev =>
+                        prev + 1
+                );
+
+            } else {
+
+                navigation.goBack();
+            }
+        };
+
+    // ==========================
+    // PREVIOUS STORY
+    // ==========================
+
+    const previousStory =
+        () => {
+
+            if (index > 0) {
+
+                setIndex(
+                    prev =>
+                        prev - 1
+                );
+            }
+        };
+
+    // ==========================
     // UI
     // ==========================
 
     return (
 
-        <View
-            style={
-                styles.container
-            }
-        >
-
-            {/* PROGRESS BAR */}
+        <AppContainer>
 
             <View
                 style={
-                    styles.progressContainer
+                    styles.container
                 }
             >
 
-                {stories.map(
-                    (
-                        _: any,
-                        i: number
-                    ) => {
+                {/* PROGRESS BAR */}
 
-                        return (
+                <View
+                    style={
+                        styles.progressContainer
+                    }
+                >
 
-                            <View
-                                key={i}
-                                style={
-                                    styles.progressBg
-                                }
-                            >
+                    {
+                        stories.map(
+                            (
+                                _: any,
+                                i: number
+                            ) => {
 
-                                {i < index ? (
+                                return (
 
                                     <View
+                                        key={i}
                                         style={
-                                            styles.progressFull
+                                            styles.progressBg
                                         }
-                                    />
+                                    >
 
-                                ) : i ===
-                                    index ? (
+                                        {
+                                            i <
+                                            index ? (
 
-                                    <Animated.View
-                                        style={[
-                                            styles.progressAnimated,
+                                                <View
+                                                    style={
+                                                        styles.progressFull
+                                                    }
+                                                />
 
-                                            {
-                                                width:
-                                                    progress.interpolate(
+                                            ) : i ===
+                                                index ? (
+
+                                                <Animated.View
+                                                    style={[
+                                                        styles.progressAnimated,
+
                                                         {
-                                                            inputRange:
-                                                                [
-                                                                    0,
-                                                                    1,
-                                                                ],
+                                                            width:
+                                                                progress.interpolate(
+                                                                    {
+                                                                        inputRange:
+                                                                            [
+                                                                                0,
+                                                                                1,
+                                                                            ],
 
-                                                            outputRange:
-                                                                [
-                                                                    '0%',
-                                                                    '100%',
-                                                                ],
-                                                        }
-                                                    ),
-                                            },
-                                        ]}
-                                    />
+                                                                        outputRange:
+                                                                            [
+                                                                                '0%',
+                                                                                '100%',
+                                                                            ],
+                                                                    }
+                                                                ),
+                                                        },
+                                                    ]}
+                                                />
 
-                                ) : null}
+                                            ) : null
+                                        }
 
-                            </View>
-                        );
+                                    </View>
+                                );
+                            }
+                        )
                     }
-                )}
+
+                </View>
+
+                {/* CLOSE BUTTON */}
+
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={
+                        styles.closeButton
+                    }
+                    onPress={() =>
+                        navigation.goBack()
+                    }
+                >
+
+                    <Ionicons
+                        name="close"
+                        size={28}
+                        color="#FFFFFF"
+                    />
+
+                </TouchableOpacity>
+
+                {/* STORY MEDIA */}
+
+                {
+                    currentStory?.type ===
+                    'image' ? (
+
+                        <Image
+                            source={{
+                                uri:
+                                    currentStory?.url,
+                            }}
+                            style={
+                                styles.storyMedia
+                            }
+                            resizeMode="contain"
+                        />
+
+                    ) : (
+
+                        <Video
+                            source={{
+                                uri:
+                                    currentStory?.url,
+                            }}
+                            style={
+                                styles.storyMedia
+                            }
+                            resizeMode="contain"
+                            paused={false}
+                            repeat={false}
+                        />
+
+                    )
+                }
+
+                {/* TOUCH AREA */}
+
+                <View
+                    style={
+                        styles.touchContainer
+                    }
+                >
+
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={
+                            styles.touchLeft
+                        }
+                        onPress={
+                            previousStory
+                        }
+                    />
+
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={
+                            styles.touchRight
+                        }
+                        onPress={
+                            nextStory
+                        }
+                    />
+
+                </View>
 
             </View>
 
-            {/* IMAGE */}
-
-            {currentStory?.type ===
-                'image' ? (
-
-                <Image
-                    source={{
-                        uri:
-                            currentStory?.url,
-                    }}
-                    style={
-                        styles.storyMedia
-                    }
-                    resizeMode="contain"
-                />
-
-            ) : (
-
-                // VIDEO
-
-                <Video
-                    source={{
-                        uri:
-                            currentStory?.url,
-                    }}
-                    style={
-                        styles.storyMedia
-                    }
-                    resizeMode="contain"
-                    paused={false}
-                    repeat={false}
-                />
-
-            )}
-
-        </View>
+        </AppContainer>
     );
 }
 
@@ -242,59 +364,132 @@ const styles = StyleSheet.create({
 
     container: {
         flex: 1,
-        backgroundColor: '#000',
-        justifyContent: 'center',
-        alignItems: 'center',
+
+        backgroundColor:
+            '#000000',
+
+        justifyContent:
+            'center',
+
+        alignItems:
+            'center',
     },
 
     loaderContainer: {
         flex: 1,
-        backgroundColor: '#000',
-        justifyContent: 'center',
-        alignItems: 'center',
+
+        backgroundColor:
+            '#000000',
+
+        justifyContent:
+            'center',
+
+        alignItems:
+            'center',
     },
 
     // ==========================
-    // PROGRESS BAR
+    // PROGRESS
     // ==========================
 
     progressContainer: {
         position: 'absolute',
+
         top: 55,
         left: 10,
         right: 10,
-        flexDirection: 'row',
+
+        flexDirection:
+            'row',
+
         zIndex: 999,
     },
 
     progressBg: {
         flex: 1,
+
         height: 3,
+
         backgroundColor:
             'rgba(255,255,255,0.3)',
+
         marginHorizontal: 2,
+
         borderRadius: 10,
+
         overflow: 'hidden',
     },
 
     progressFull: {
         width: '100%',
         height: 3,
-        backgroundColor: '#FFF',
+
+        backgroundColor:
+            '#FFFFFF',
     },
 
     progressAnimated: {
         height: 3,
-        backgroundColor: '#FFF',
+
+        backgroundColor:
+            '#FFFFFF',
     },
 
     // ==========================
-    // STORY MEDIA
+    // MEDIA
     // ==========================
 
     storyMedia: {
         width,
         height,
+    },
+
+    // ==========================
+    // CLOSE
+    // ==========================
+
+    closeButton: {
+        position: 'absolute',
+
+        top: 60,
+        right: 18,
+
+        zIndex: 999,
+
+        width: 42,
+        height: 42,
+
+        borderRadius: 21,
+
+        backgroundColor:
+            'rgba(0,0,0,0.35)',
+
+        justifyContent:
+            'center',
+
+        alignItems:
+            'center',
+    },
+
+    // ==========================
+    // TOUCH AREA
+    // ==========================
+
+    touchContainer: {
+        position: 'absolute',
+
+        width: '100%',
+        height: '100%',
+
+        flexDirection: 'row',
+    },
+
+    touchLeft: {
+        flex: 1,
+    },
+
+    touchRight: {
+        flex: 1,
     },
 
 });
