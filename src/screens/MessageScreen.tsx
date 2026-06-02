@@ -150,7 +150,7 @@ export default function MessageScreen() {
                     );
 
                     setUserImage(
-                        data?.image || ''
+                        data?.profileImage || ''
                     );
                 }
 
@@ -266,6 +266,7 @@ export default function MessageScreen() {
     };
 
     // SEND TEXT MESSAGE
+    // SEND TEXT MESSAGE
     const sendMessage = async () => {
 
         if (!message.trim()) return;
@@ -274,6 +275,10 @@ export default function MessageScreen() {
 
             const newMessage =
                 message.trim();
+
+            // =========================
+            // UPDATE CHAT DOCUMENT
+            // =========================
 
             await setDoc(
                 doc(db, 'chats', chatId),
@@ -291,6 +296,42 @@ export default function MessageScreen() {
                 },
                 { merge: true }
             );
+
+            // =========================
+            // UPDATE CURRENT USER
+            // =========================
+
+            await setDoc(
+                doc(db, 'users', currentUserId),
+                {
+                    lastMessage:
+                        newMessage,
+
+                    lastMessageTime:
+                        serverTimestamp(),
+                },
+                { merge: true }
+            );
+
+            // =========================
+            // UPDATE RECEIVER USER
+            // =========================
+
+            await setDoc(
+                doc(db, 'users', receiverId),
+                {
+                    lastMessage:
+                        newMessage,
+
+                    lastMessageTime:
+                        serverTimestamp(),
+                },
+                { merge: true }
+            );
+
+            // =========================
+            // SAVE MESSAGE
+            // =========================
 
             await addDoc(
                 collection(
@@ -381,6 +422,7 @@ export default function MessageScreen() {
     };
 
     // SEND IMAGE
+    // SEND IMAGE
     const sendImageMessage =
         async () => {
 
@@ -395,6 +437,10 @@ export default function MessageScreen() {
                     await uploadImageToCloudinary(
                         selectedImage
                     );
+
+                // =========================
+                // UPDATE CHAT DOCUMENT
+                // =========================
 
                 await setDoc(
                     doc(
@@ -416,6 +462,50 @@ export default function MessageScreen() {
                     },
                     { merge: true }
                 );
+
+                // =========================
+                // UPDATE CURRENT USER
+                // =========================
+
+                await setDoc(
+                    doc(
+                        db,
+                        'users',
+                        currentUserId
+                    ),
+                    {
+                        lastMessage:
+                            '📷 Photo',
+
+                        lastMessageTime:
+                            serverTimestamp(),
+                    },
+                    { merge: true }
+                );
+
+                // =========================
+                // UPDATE RECEIVER USER
+                // =========================
+
+                await setDoc(
+                    doc(
+                        db,
+                        'users',
+                        receiverId
+                    ),
+                    {
+                        lastMessage:
+                            '📷 Photo',
+
+                        lastMessageTime:
+                            serverTimestamp(),
+                    },
+                    { merge: true }
+                );
+
+                // =========================
+                // SAVE IMAGE MESSAGE
+                // =========================
 
                 await addDoc(
                     collection(

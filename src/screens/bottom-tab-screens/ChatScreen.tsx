@@ -1,4 +1,8 @@
-import React from 'react';
+import React, {
+    useEffect,
+    useState,
+} from 'react';
+
 import {
     View,
     Text,
@@ -6,278 +10,956 @@ import {
     FlatList,
     Image,
     TouchableOpacity,
+    ActivityIndicator,
+    Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
+import * as ImagePicker from 'expo-image-picker';
+
+import {
+    collection,
+    onSnapshot,
+    orderBy,
+    query,
+    addDoc,
+    serverTimestamp,
+    deleteDoc,
+    doc,
+    getDoc,
+} from 'firebase/firestore';
+
+import {
+    SafeAreaView,
+} from 'react-native-safe-area-context';
+
+import {
+    auth,
+    db,
+} from '../../services/firebase';
+
+import {
+    useNavigation,
+} from '@react-navigation/native';
+
+import {
+    Ionicons,
+} from '@expo/vector-icons';
+
+// ==========================
+// TYPES
+// ==========================
+
+type MediaType = {
+    type: 'image' | 'video';
+    url: string;
+    duration: number;
+};
 
 type StoryType = {
     id: string;
-    name: string;
-    image: string;
-    isYourStory?: boolean;
-    online?: boolean;
+    userId: string;
+    userName: string;
+    userImage: string;
+    media: MediaType[];
 };
 
 type ChatType = {
     id: string;
+    userId: string;
     name: string;
-    message: string;
-    time: string;
-    image: string;
-    unread?: boolean;
+    image?: string;
+    lastMessage?: string;
+    lastMessageTime?: any;
+    online?: boolean;
 };
 
-const stories: StoryType[] = [
-    {
-        id: '1',
-        name: 'Your story',
-        image: '',
-        isYourStory: true,
-    },
-    {
-        id: '2',
-        name: 'Joshua',
-        image:
-            'https://randomuser.me/api/portraits/men/32.jpg',
-        online: true,
-    },
-    {
-        id: '3',
-        name: 'Martin',
-        image:
-            'https://randomuser.me/api/portraits/men/45.jpg',
-        online: true,
-    },
-    {
-        id: '4',
-        name: 'Karen',
-        image:
-            'https://randomuser.me/api/portraits/women/44.jpg',
-        online: true,
-    },
-    {
-        id: '5',
-        name: 'Martha',
-        image:
-            'https://randomuser.me/api/portraits/women/68.jpg',
-        online: false,
-    },
-];
-
-const chats: ChatType[] = [
-    {
-        id: '1',
-        name: 'Martin Randolph',
-        message: "You: What's man!",
-        time: '9:40 AM',
-        image:
-            'https://randomuser.me/api/portraits/men/45.jpg',
-        unread: true,
-    },
-    {
-        id: '2',
-        name: 'Andrew Parker',
-        message: 'You: Ok, thanks!',
-        time: '9:25 AM',
-        image:
-            'https://randomuser.me/api/portraits/men/22.jpg',
-    },
-    {
-        id: '3',
-        name: 'Karen Castillo',
-        message: 'You: Ok, See you Tomorrow',
-        time: 'Fri',
-        image:
-            'https://randomuser.me/api/portraits/women/44.jpg',
-    },
-    {
-        id: '4',
-        name: 'Maisy Humphrey',
-        message: 'Have a good day, Maisy!',
-        time: 'Fri',
-        image:
-            'https://randomuser.me/api/portraits/women/65.jpg',
-    },
-    {
-        id: '5',
-        name: 'Joshua Lawrence',
-        message: 'The business plan looks great',
-        time: 'Thu',
-        image:
-            'https://randomuser.me/api/portraits/men/32.jpg',
-    },
-];
-
 export default function ChatScreen() {
-    const renderStoryItem = ({ item }: { item: StoryType }) => {
+
+    const navigation = useNavigation<any>();
+
+    const currentUser = auth.currentUser;
+
+    const [stories, setStories] =
+        useState<StoryType[]>([]);
+
+    const [chats, setChats] =
+        useState<ChatType[]>([]);
+
+    const [loading, setLoading] =
+        useState(true);
+
+    // ==========================
+    // GET STORIES
+    // ==========================
+
+    useEffect(() => {
+
+        const q = query(
+            collection(db, 'stories'),
+            orderBy('createdAt', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(
+            q,
+            async snapshot => {
+
+                const now = Date.now();
+
+                const tempStories:
+                    StoryType[] = [];
+
+                for (const item of snapshot.docs) {
+
+                    const data = item.data();
+
+                    const expireTime =
+                        data?.expiresAt
+                            ?.toDate()
+                            ?.getTime?.() || 0;
+
+                    // AUTO DELETE AFTER 24 HOURS
+
+                    if (
+                        expireTime > now
+                    ) {
+
+                        tempStories.push({
+                            id: item.id,
+                            userId:
+                                data.userId,
+
+                            userName:
+                                data.userName,
+
+                            userImage:
+                                data.userImage,
+
+                            media:
+                                data.media ||
+                                [],
+                        });
+
+                    } else {
+
+                        await deleteDoc(
+                            doc(
+                                db,
+                                'stories',
+                                item.id
+                            )
+                        );
+                    }
+                }
+
+                setStories(
+                    tempStories
+                );
+            }
+        );
+
+        return () =>
+            unsubscribe();
+
+    }, []);
+
+    // ==========================
+    // GET CHATS
+    // ==========================
+
+    useEffect(() => {
+
+        if (!currentUser?.uid)
+            return;
+
+        const q = query(
+            collection(db, 'chats'),
+            orderBy(
+                'lastMessageTime',
+                'desc'
+            )
+        );
+
+        const unsubscribe =
+            onSnapshot(
+                q,
+                async snapshot => {
+
+                    try {
+
+                        const tempChats:
+                            ChatType[] =
+                                [];
+
+                        for (const chatDoc of snapshot.docs) {
+
+                            const chatData =
+                                chatDoc.data();
+
+                            if (
+                                !chatData?.users?.includes(
+                                    currentUser.uid
+                                )
+                            ) {
+                                continue;
+                            }
+
+                            const receiverId =
+                                chatData.users.find(
+                                    (
+                                        id: string
+                                    ) =>
+                                        id !==
+                                        currentUser.uid
+                                );
+
+                            if (
+                                !receiverId
+                            )
+                                continue;
+
+                            const userSnap =
+                                await getDoc(
+                                    doc(
+                                        db,
+                                        'users',
+                                        receiverId
+                                    )
+                                );
+
+                            if (
+                                !userSnap.exists()
+                            )
+                                continue;
+
+                            const userData =
+                                userSnap.data();
+
+                            tempChats.push({
+                                id:
+                                    chatDoc.id,
+
+                                userId:
+                                    receiverId,
+
+                                name:
+                                    userData?.name ||
+                                    'User',
+
+                                image:
+                                    userData?.profileImage ||
+                                    '',
+
+                                lastMessage:
+                                    chatData?.lastMessage ||
+                                    'Start Chat',
+
+                                lastMessageTime:
+                                    chatData?.lastMessageTime,
+
+                                online:
+                                    userData?.isOnline ||
+                                    false,
+                            });
+                        }
+
+                        setChats(
+                            tempChats
+                        );
+
+                        setLoading(
+                            false
+                        );
+
+                    } catch (error) {
+
+                        console.log(
+                            'Chat Error:',
+                            error
+                        );
+
+                        setLoading(
+                            false
+                        );
+                    }
+                }
+            );
+
+        return () =>
+            unsubscribe();
+
+    }, []);
+
+    // ==========================
+    // PICK STORY
+    // ==========================
+
+    const pickStory =
+        async () => {
+
+            try {
+
+                const result =
+                    await ImagePicker.launchImageLibraryAsync(
+                        {
+                            mediaTypes:
+                                ImagePicker.MediaTypeOptions.All,
+
+                            allowsMultipleSelection:
+                                true,
+
+                            quality: 1,
+                        }
+                    );
+
+                if (
+                    result.canceled
+                )
+                    return;
+
+                const media:
+                    MediaType[] = [];
+
+                for (const asset of result.assets) {
+
+                    // TEMP URI
+                    // Replace with Cloudinary URL later
+
+                    media.push({
+                        type:
+                            asset.type ===
+                            'video'
+                                ? 'video'
+                                : 'image',
+
+                        url:
+                            asset.uri,
+
+                        duration:
+                            asset.type ===
+                            'video'
+                                ? 30
+                                : 5,
+                    });
+                }
+
+                await addDoc(
+                    collection(
+                        db,
+                        'stories'
+                    ),
+                    {
+                        userId:
+                            currentUser?.uid,
+
+                        userName:
+                            currentUser?.displayName ||
+                            'User',
+
+                        userImage:
+                            currentUser?.photoURL ||
+                            '',
+
+                        media,
+
+                        createdAt:
+                            serverTimestamp(),
+
+                        expiresAt:
+                            new Date(
+                                Date.now() +
+                                24 *
+                                    60 *
+                                    60 *
+                                    1000
+                            ),
+                    }
+                );
+
+            } catch (error) {
+
+                console.log(
+                    'Story Error:',
+                    error
+                );
+            }
+        };
+
+    // ==========================
+    // DELETE STORY
+    // ==========================
+
+    const deleteStory =
+        async (
+            storyId: string
+        ) => {
+
+            Alert.alert(
+                'Delete Story',
+                'Delete this story?',
+                [
+                    {
+                        text: 'Cancel',
+                    },
+
+                    {
+                        text: 'Delete',
+
+                        onPress:
+                            async () => {
+
+                                await deleteDoc(
+                                    doc(
+                                        db,
+                                        'stories',
+                                        storyId
+                                    )
+                                );
+                            },
+                    },
+                ]
+            );
+        };
+
+    // ==========================
+    // FORMAT TIME
+    // ==========================
+
+    const formatTime = (
+        time: any
+    ) => {
+
+        if (!time) return '';
+
+        const date =
+            time.toDate();
+
+        return date.toLocaleTimeString(
+            [],
+            {
+                hour: '2-digit',
+                minute: '2-digit',
+            }
+        );
+    };
+
+    // ==========================
+    // PROFILE IMAGE
+    // ==========================
+
+    const renderProfileImage =
+        (
+            image?: string,
+            size: number = 65
+        ) => {
+
+            if (image) {
+
+                return (
+                    <Image
+                        source={{
+                            uri: image,
+                        }}
+                        style={{
+                            width: size,
+                            height: size,
+                            borderRadius:
+                                size / 2,
+                        }}
+                    />
+                );
+            }
+
+            return (
+
+                <View
+                    style={[
+                        styles.dummyImage,
+                        {
+                            width: size,
+                            height: size,
+                            borderRadius:
+                                size / 2,
+                        },
+                    ]}
+                >
+
+                    <Ionicons
+                        name="person"
+                        size={
+                            size / 2
+                        }
+                        color="#FFF"
+                    />
+
+                </View>
+            );
+        };
+
+    // ==========================
+    // STORY ITEM
+    // ==========================
+
+    const renderStoryItem = ({
+        item,
+    }: {
+        item: StoryType;
+    }) => {
+
+        const isMine =
+            item.userId ===
+            currentUser?.uid;
+
         return (
-            <TouchableOpacity style={styles.storyItem}>
-                {item.isYourStory ? (
-                    <View style={styles.addStory}>
-                        <Text style={styles.plus}>+</Text>
-                    </View>
-                ) : (
-                    <View style={styles.storyImageWrapper}>
-                        <Image
-                            source={{ uri: item.image }}
-                            style={styles.storyImage}
-                        />
 
-                        {item.online && <View style={styles.onlineDot} />}
-                    </View>
-                )}
+            <TouchableOpacity
+                style={
+                    styles.storyItem
+                }
+                activeOpacity={0.8}
+                onPress={() => {
 
-                <Text style={styles.storyName} numberOfLines={1}>
-                    {item.name}
+                    // MY STORY
+
+                    if (isMine) {
+
+                        // NO STORY
+
+                        if (
+                            item.media.length === 0
+                        ) {
+
+                            pickStory();
+
+                            return;
+                        }
+                    }
+
+                    // OPEN STORY
+
+                    navigation.navigate(
+                        'Story',
+                        {
+                            stories:
+                                item.media,
+
+                            user:
+                                item.userName,
+                        }
+                    );
+                }}
+                onLongPress={() => {
+
+                    // DELETE OWN STORY
+
+                    if (
+                        isMine &&
+                        item.media.length > 0
+                    ) {
+
+                        deleteStory(
+                            item.id
+                        );
+                    }
+                }}
+            >
+
+                <View
+                    style={
+                        styles.storyWrapper
+                    }
+                >
+
+                    {/* STORY BORDER */}
+
+                    <View
+                        style={[
+                            styles.storyBorder,
+
+                            isMine &&
+                                item.media
+                                    .length === 0 && {
+                                    borderColor:
+                                        '#DDD',
+                                },
+                        ]}
+                    >
+
+                        {/* USER IMAGE */}
+
+                        {item.userImage ? (
+
+                            <Image
+                                source={{
+                                    uri:
+                                        item.userImage,
+                                }}
+                                style={
+                                    styles.storyImage
+                                }
+                            />
+
+                        ) : (
+
+                            <View
+                                style={
+                                    styles.dummyImage
+                                }
+                            >
+
+                                <Ionicons
+                                    name="person"
+                                    size={32}
+                                    color="#FFF"
+                                />
+
+                            </View>
+
+                        )}
+
+                    </View>
+
+                    {/* ADD STORY BUTTON */}
+
+                    {isMine && (
+
+                        <TouchableOpacity
+                            style={
+                                styles.addStoryBtn
+                            }
+                            onPress={
+                                pickStory
+                            }
+                        >
+
+                            <Ionicons
+                                name="add"
+                                size={16}
+                                color="#FFF"
+                            />
+
+                        </TouchableOpacity>
+
+                    )}
+
+                </View>
+
+                {/* STORY NAME */}
+
+                <Text
+                    style={
+                        styles.storyName
+                    }
+                    numberOfLines={1}
+                >
+                    {isMine
+                        ? 'Your Story'
+                        : item.userName}
                 </Text>
+
             </TouchableOpacity>
         );
     };
 
-    const renderChatItem = ({ item }: { item: ChatType }) => {
-        return (
-            <TouchableOpacity style={styles.chatItem}>
-                <Image
-                    source={{ uri: item.image }}
-                    style={styles.chatImage}
-                />
+    // ==========================
+    // CHAT ITEM
+    // ==========================
 
-                <View style={styles.chatContent}>
-                    <View style={styles.topRow}>
-                        <Text style={styles.chatName} numberOfLines={1}>
+    const renderChatItem = ({
+        item,
+    }: {
+        item: ChatType;
+    }) => {
+
+        return (
+
+            <TouchableOpacity
+                style={
+                    styles.chatItem
+                }
+                activeOpacity={0.8}
+                onPress={() =>
+                    navigation.navigate(
+                        'Message',
+                        {
+                            receiverId:
+                                item.userId,
+
+                            receiverName:
+                                item.name,
+
+                            receiverImage:
+                                item.image,
+                        }
+                    )
+                }
+            >
+
+                <View>
+
+                    {renderProfileImage(
+                        item.image,
+                        65
+                    )}
+
+                    {item.online && (
+
+                        <View
+                            style={
+                                styles.onlineDot
+                            }
+                        />
+
+                    )}
+
+                </View>
+
+                <View
+                    style={
+                        styles.chatContent
+                    }
+                >
+
+                    <View
+                        style={
+                            styles.topRow
+                        }
+                    >
+
+                        <Text
+                            style={
+                                styles.chatName
+                            }
+                            numberOfLines={1}
+                        >
                             {item.name}
                         </Text>
 
-                        <Text style={styles.chatTime}>
-                            {item.time}
-                        </Text>
-                    </View>
-
-                    <View style={styles.messageRow}>
                         <Text
-                            style={styles.chatMessage}
-                            numberOfLines={1}
+                            style={
+                                styles.chatTime
+                            }
                         >
-                            {item.message}
+                            {formatTime(
+                                item.lastMessageTime
+                            )}
                         </Text>
 
-                        <View
-                            style={[
-                                styles.messageStatus,
-                                item.unread && styles.unreadStatus,
-                            ]}
-                        />
                     </View>
+
+                    <Text
+                        style={
+                            styles.chatMessage
+                        }
+                        numberOfLines={1}
+                    >
+                        {item.lastMessage}
+                    </Text>
+
                 </View>
+
             </TouchableOpacity>
         );
     };
 
+    // ==========================
+    // LOADING
+    // ==========================
+
+    if (loading) {
+
+        return (
+
+            <View
+                style={
+                    styles.loader
+                }
+            >
+
+                <ActivityIndicator
+                    size="large"
+                    color="#5B60FF"
+                />
+
+            </View>
+        );
+    }
+
+    // ==========================
+    // UI
+    // ==========================
+
     return (
-        <SafeAreaView style={styles.container}>
-            {/* Stories */}
-            <View style={styles.storyContainer}>
+
+        <SafeAreaView
+            style={
+                styles.container
+            }
+        >
+
+            {/* STORIES */}
+
+            <View
+                style={{
+                    paddingTop: 14,
+                    height: 115,
+                }}
+            >
+
                 <FlatList
                     horizontal
-                    data={stories}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderStoryItem}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.storyList}
+                    showsHorizontalScrollIndicator={
+                        false
+                    }
+                    contentContainerStyle={{
+                        paddingHorizontal: 16,
+                    }}
+                    data={[
+
+                        // MY STORY
+
+                        {
+                            id:
+                                stories.find(
+                                    item =>
+                                        item.userId ===
+                                        currentUser?.uid
+                                )?.id ||
+                                'myStory',
+
+                            userId:
+                                currentUser?.uid ||
+                                '',
+
+                            userName:
+                                currentUser?.displayName ||
+                                'You',
+
+                            userImage:
+                                currentUser?.photoURL ||
+                                '',
+
+                            media:
+                                stories.find(
+                                    item =>
+                                        item.userId ===
+                                        currentUser?.uid
+                                )?.media || [],
+                        },
+
+                        // OTHER STORIES
+
+                        ...stories.filter(
+                            item =>
+                                item.userId !==
+                                currentUser?.uid
+                        ),
+                    ]}
+                    keyExtractor={item =>
+                        item.id
+                    }
+                    renderItem={
+                        renderStoryItem
+                    }
                 />
+
             </View>
 
-            {/* Recent Chats */}
+            {/* CHATS */}
+
             <FlatList
                 data={chats}
-                keyExtractor={(item) => item.id}
-                renderItem={renderChatItem}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.chatList}
+                keyExtractor={item =>
+                    item.id
+                }
+                renderItem={
+                    renderChatItem
+                }
+                showsVerticalScrollIndicator={
+                    false
+                }
+                contentContainerStyle={{
+                    paddingHorizontal: 16,
+                    paddingTop: 20,
+                    paddingBottom: 120,
+                }}
             />
+
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
+
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#FFF',
     },
 
-    storyContainer: {
-        paddingTop: 12,
-    },
-
-    storyList: {
-        paddingHorizontal: 16,
-    },
-
-    storyItem: {
-        alignItems: 'center',
-        marginRight: 18,
-        width: 72,
-    },
-
-    addStory: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        backgroundColor: '#F1F1F1',
+    loader: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
 
-    plus: {
-        fontSize: 42,
-        color: '#000',
-        fontWeight: '300',
-        marginTop: -4,
+    // ==========================
+    // STORIES
+    // ==========================
+
+    storyItem: {
+        width: 84,
+        alignItems: 'center',
+        marginRight: 16,
     },
 
-    storyImageWrapper: {
+    storyWrapper: {
         position: 'relative',
     },
 
-    storyImage: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
+    storyBorder: {
+        width: 76,
+        height: 76,
+        borderRadius: 38,
+        borderWidth: 2.5,
+        borderColor: '#FF006A',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 
-    onlineDot: {
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        backgroundColor: '#5CD65C',
-        borderWidth: 3,
-        borderColor: '#FFF',
-        position: 'absolute',
-        bottom: 2,
-        right: 2,
+    storyImage: {
+        width: 68,
+        height: 68,
+        borderRadius: 34,
     },
 
     storyName: {
-        marginTop: 8,
-        fontSize: 14,
-        color: '#7A7A7A',
+        marginTop: 6,
+        fontSize: 12,
+        color: '#444',
+        maxWidth: 74,
     },
 
-    chatList: {
-        paddingTop: 18,
-        paddingHorizontal: 20,
-        paddingBottom: 30,
+    addStoryBtn: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#5B60FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFF',
     },
+
+    // ==========================
+    // CHAT
+    // ==========================
 
     chatItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 28,
-    },
-
-    chatImage: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
+        marginBottom: 22,
     },
 
     chatContent: {
@@ -287,46 +969,54 @@ const styles = StyleSheet.create({
 
     topRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent:
+            'space-between',
         alignItems: 'center',
     },
 
     chatName: {
-        fontSize: 20,
+        fontSize: 17,
         fontWeight: '700',
         color: '#111',
         flex: 1,
-        marginRight: 10,
+        marginRight: 8,
     },
 
     chatTime: {
-        fontSize: 15,
-        color: '#8E8E93',
-    },
-
-    messageRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 4,
+        fontSize: 12,
+        color: '#999',
     },
 
     chatMessage: {
-        flex: 1,
-        fontSize: 16,
-        color: '#8E8E93',
+        marginTop: 4,
+        fontSize: 14,
+        color: '#777',
     },
 
-    messageStatus: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
+    onlineDot: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#34C759',
         borderWidth: 2,
-        borderColor: '#D1D1D6',
-        marginLeft: 10,
+        borderColor: '#FFF',
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
     },
 
-    unreadStatus: {
-        borderColor: '#D1D1D6',
-        backgroundColor: '#FFF',
+    // ==========================
+    // DUMMY IMAGE
+    // ==========================
+
+    dummyImage: {
+        width: 68,
+        height: 68,
+        borderRadius: 34,
+        backgroundColor: '#7B61FF',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
+
 });
+

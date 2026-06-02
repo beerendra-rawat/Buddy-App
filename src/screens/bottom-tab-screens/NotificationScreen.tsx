@@ -1,9 +1,9 @@
 import { View, Text, StyleSheet } from 'react-native';
 
-export default function CallsScreen() {
+export default function NotificationScreen() {
     return (
         <View style={styles.container}>
-            <Text style={styles.text}>Calls Screen</Text>
+            <Text style={styles.text}>NotificationScreen</Text>
         </View>
     );
 }

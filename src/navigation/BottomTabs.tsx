@@ -6,7 +6,10 @@ import { StyleSheet, TouchableOpacity, View, Platform } from 'react-native';
 import ChatScreen from '../screens/bottom-tab-screens/ChatScreen';
 import PeopleScreen from '../screens/bottom-tab-screens/PeopleScreen';
 import FriendScreen from '../screens/bottom-tab-screens/FriendScreen';
-import CallsScreen from '../screens/bottom-tab-screens/CallsScreen';
+
+// CHANGE THIS
+import NotificationScreen from '../screens/bottom-tab-screens/NotificationScreen';
+
 import ProfileScreen from '../screens/bottom-tab-screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
@@ -34,20 +37,22 @@ export default function BottomTabs() {
         <Tab.Navigator
             screenOptions={({ route }) => ({
                 headerShown: false,
-
                 tabBarHideOnKeyboard: true,
                 tabBarShowLabel: true,
                 tabBarActiveTintColor: '#5B60FF',
                 tabBarInactiveTintColor: '#8F97B6',
+
                 tabBarLabelStyle: {
                     fontSize: 11,
                     fontWeight: '700',
                     marginTop: 2,
                 },
+
                 tabBarItemStyle: {
                     marginHorizontal: 4,
                     borderRadius: 18,
                 },
+
                 tabBarStyle: {
                     position: 'absolute',
                     left: 16,
@@ -60,6 +65,7 @@ export default function BottomTabs() {
                     backgroundColor: '#FFFFFF',
                     borderTopWidth: 0,
                     elevation: 12,
+
                     shadowColor: '#000',
                     shadowOffset: {
                         width: 0,
@@ -68,7 +74,11 @@ export default function BottomTabs() {
                     shadowOpacity: 0.08,
                     shadowRadius: 16,
                 },
-                tabBarButton: (props) => <CustomTabBarButton {...props} />,
+
+                tabBarButton: (props) => (
+                    <CustomTabBarButton {...props} />
+                ),
+
                 tabBarIcon: ({ color, focused }) => {
                     let iconName: any;
 
@@ -76,18 +86,25 @@ export default function BottomTabs() {
                         iconName = focused
                             ? 'chatbubble'
                             : 'chatbubble-outline';
+
                     } else if (route.name === 'People') {
                         iconName = focused
                             ? 'people'
                             : 'people-outline';
+
                     } else if (route.name === 'Friends') {
                         iconName = focused
                             ? 'person-add'
                             : 'person-add-outline';
-                    } else if (route.name === 'Calls') {
+
+                    }
+
+                    // CHANGED HERE
+                    else if (route.name === 'Notifications') {
                         iconName = focused
-                            ? 'call'
-                            : 'call-outline';
+                            ? 'notifications'
+                            : 'notifications-outline';
+
                     } else if (route.name === 'Profile') {
                         iconName = focused
                             ? 'person-circle'
@@ -95,7 +112,12 @@ export default function BottomTabs() {
                     }
 
                     return (
-                        <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
+                        <View
+                            style={[
+                                styles.iconWrapper,
+                                focused && styles.iconWrapperActive,
+                            ]}
+                        >
                             <Ionicons
                                 name={iconName}
                                 size={22}
@@ -106,11 +128,31 @@ export default function BottomTabs() {
                 },
             })}
         >
-            <Tab.Screen name="Chat" component={ChatScreen} />
-            <Tab.Screen name="People" component={PeopleScreen} />
-            <Tab.Screen name="Friends" component={FriendScreen} />
-            <Tab.Screen name="Calls" component={CallsScreen} />
-            <Tab.Screen name="Profile" component={ProfileScreen} />
+            <Tab.Screen
+                name="Chat"
+                component={ChatScreen}
+            />
+
+            <Tab.Screen
+                name="People"
+                component={PeopleScreen}
+            />
+
+            <Tab.Screen
+                name="Friends"
+                component={FriendScreen}
+            />
+
+            {/* CHANGED HERE */}
+            <Tab.Screen
+                name="Notifications"
+                component={NotificationScreen}
+            />
+
+            <Tab.Screen
+                name="Profile"
+                component={ProfileScreen}
+            />
         </Tab.Navigator>
     );
 }
@@ -121,6 +163,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+
     tabButton: {
         flexDirection: 'column',
         alignItems: 'center',
@@ -129,9 +172,11 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         borderRadius: 20,
     },
+
     tabButtonActive: {
         backgroundColor: '#EEF2FF',
     },
+
     iconWrapper: {
         width: 42,
         height: 42,
@@ -140,6 +185,7 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         marginBottom: 4,
     },
+
     iconWrapperActive: {
         backgroundColor: '#EDE9FE',
     },
