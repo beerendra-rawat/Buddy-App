@@ -10,9 +10,19 @@ import {
     ScrollView,
     Alert,
 } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createUserWithEmailAndPassword, } from 'firebase/auth';
-import { doc, setDoc, } from 'firebase/firestore';
+
+import {
+    createUserWithEmailAndPassword,
+} from 'firebase/auth';
+
+import {
+    doc,
+    setDoc,
+    serverTimestamp,
+} from 'firebase/firestore';
+
 import { auth, db } from '../../services/firebase';
 
 import BackButton from '../../components/auth/BackButton';
@@ -31,7 +41,18 @@ export default function SignUpScreen({ navigation }: any) {
     const handleSignUp = async () => {
 
         if (!name || !email || !password) {
-            Alert.alert('Error', 'Please fill all fields');
+            Alert.alert(
+                'Error',
+                'Please fill all fields'
+            );
+            return;
+        }
+
+        if (password.length < 6) {
+            Alert.alert(
+                'Error',
+                'Password must be at least 6 characters'
+            );
             return;
         }
 
@@ -39,24 +60,27 @@ export default function SignUpScreen({ navigation }: any) {
 
             setLoading(true);
 
-            // Create account
+            // CREATE USER
             const userCredential =
                 await createUserWithEmailAndPassword(
                     auth,
-                    email,
+                    email.trim(),
                     password
                 );
 
             const user = userCredential.user;
 
-            // Save user data in Firestore
+            // SAVE USER DATA
             await setDoc(
                 doc(db, 'users', user.uid),
                 {
-                    name,
-                    email,
+                    uid: user.uid,
+                    name: name.trim(),
+                    email: email.trim(),
+                    photoURL: '',
                     online: true,
-                    createdAt: Date.now(),
+                    lastSeen: serverTimestamp(),
+                    createdAt: serverTimestamp(),
                 }
             );
 
@@ -67,7 +91,8 @@ export default function SignUpScreen({ navigation }: any) {
                 'Account created successfully'
             );
 
-            navigation.navigate('Message');
+            // IMPORTANT FIX
+            navigation.replace('MainTabs');
 
         } catch (error: any) {
 
@@ -81,7 +106,10 @@ export default function SignUpScreen({ navigation }: any) {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView
+            edges={['top']}
+            style={styles.container}
+        >
 
             <StatusBar
                 barStyle="dark-content"
@@ -102,18 +130,17 @@ export default function SignUpScreen({ navigation }: any) {
                     contentContainerStyle={styles.scrollContainer}
                 >
 
-                    {/* Back Button */}
                     <BackButton
-                        onPress={() => navigation.goBack()}
+                        onPress={() =>
+                            navigation.goBack()
+                        }
                     />
 
-                    {/* Header */}
                     <AuthHeader
                         title="Create Account"
-                        subtitle="Create your account and start chatting with your friends"
+                        subtitle="Create your account and start chatting"
                     />
 
-                    {/* Full Name */}
                     <CustomInput
                         label="Full Name"
                         placeholder="Enter your full name"
@@ -121,7 +148,6 @@ export default function SignUpScreen({ navigation }: any) {
                         onChangeText={setName}
                     />
 
-                    {/* Email */}
                     <CustomInput
                         label="Email Address"
                         placeholder="Enter your email"
@@ -130,14 +156,12 @@ export default function SignUpScreen({ navigation }: any) {
                         onChangeText={setEmail}
                     />
 
-                    {/* Password */}
                     <PasswordInput
                         label="Create Password"
                         value={password}
                         onChangeText={setPassword}
                     />
 
-                    {/* Button */}
                     <PrimaryButton
                         title={
                             loading
@@ -147,7 +171,6 @@ export default function SignUpScreen({ navigation }: any) {
                         onPress={handleSignUp}
                     />
 
-                    {/* Bottom */}
                     <View style={styles.bottomContainer}>
 
                         <Text style={styles.bottomText}>

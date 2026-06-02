@@ -158,6 +158,8 @@ export default function MessageScreen() {
 
                         setUserImage(
                             data?.profileImage ||
+                            data?.photoURL ||
+                            data?.image ||
                             ''
                         );
                     }
