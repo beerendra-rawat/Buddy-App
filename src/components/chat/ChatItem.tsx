@@ -14,9 +14,8 @@ import {
 import UserAvatar from
     '../common/UserAvatar';
 
-import {
-    formatTime,
-} from '../../utils/formatTime';
+// FIXED IMPORT
+import formatTime from '../../utils/formatTime';
 
 import {
     COLORS,
@@ -101,12 +100,16 @@ export default function ChatItem({
                         {item.name}
                     </Text>
 
+                    {/* DATE + TIME */}
+
                     <Text style={styles.time}>
+
                         {
                             formatTime(
                                 item.lastMessageTime
                             )
                         }
+
                     </Text>
 
                 </View>
@@ -194,6 +197,8 @@ const styles = StyleSheet.create({
 
         color:
             COLORS.textSecondary,
+
+        textAlign: 'right',
     },
 
     message: {
