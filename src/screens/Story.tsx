@@ -31,6 +31,7 @@ import {
     deleteDoc,
     doc,
 } from 'firebase/firestore';
+
 import AppContainer from '../components/common/AppContainer';
 
 const {
@@ -92,39 +93,59 @@ export default function Story({
                     navigation.goBack();
                 }
 
-            }, 5000);
+            },
+                (currentStory?.duration ||
+                    5) * 1000
+            );
 
         return () =>
             clearTimeout(timer);
 
     }, [index]);
 
+    // ==========================
+    // DELETE STORY
+    // ==========================
+
     const deleteStory =
         async () => {
 
             Alert.alert(
-                'Delete',
-                'Delete Story?',
+                'Delete Story',
+                'Delete this story?',
                 [
                     {
                         text: 'Cancel',
+                        style: 'cancel',
                     },
 
                     {
                         text: 'Delete',
 
+                        style: 'destructive',
+
                         onPress:
                             async () => {
 
-                                await deleteDoc(
-                                    doc(
-                                        db,
-                                        'stories',
-                                        currentStory.id
-                                    )
-                                );
+                                try {
 
-                                navigation.goBack();
+                                    await deleteDoc(
+                                        doc(
+                                            db,
+                                            'stories',
+                                            currentStory.storyId
+                                        )
+                                    );
+
+                                    navigation.goBack();
+
+                                } catch (error) {
+
+                                    console.log(
+                                        'Delete Error:',
+                                        error
+                                    );
+                                }
                             },
                     },
                 ]
@@ -134,239 +155,255 @@ export default function Story({
     return (
         <AppContainer>
 
-        <View
-            style={
-                styles.container
-            }
-        >
-
-            <StatusBar
-                hidden
-            />
-
-            {/* TOP */}
-
             <View
                 style={
-                    styles.topContainer
+                    styles.container
                 }
             >
 
-                {stories.map(
-                    (
-                        _: any,
-                        i: number
-                    ) => (
+                <StatusBar
+                    hidden
+                />
 
-                        <View
-                            key={i}
+                {/* TOP */}
+
+                <View
+                    style={
+                        styles.topContainer
+                    }
+                >
+
+                    {stories.map(
+                        (
+                            _: any,
+                            i: number
+                        ) => (
+
+                            <View
+                                key={i}
+                                style={
+                                    styles.progressBg
+                                }
+                            >
+
+                                {i ===
+                                    index && (
+
+                                        <Animated.View
+                                            style={[
+                                                styles.progress,
+                                                {
+                                                    width:
+                                                        progress.interpolate(
+                                                            {
+                                                                inputRange:
+                                                                    [
+                                                                        0,
+                                                                        1,
+                                                                    ],
+
+                                                                outputRange:
+                                                                    [
+                                                                        '0%',
+                                                                        '100%',
+                                                                    ],
+                                                            }
+                                                        ),
+                                                },
+                                            ]}
+                                        />
+                                    )}
+                            </View>
+                        )
+                    )}
+
+                </View>
+
+                {/* HEADER */}
+
+                <View
+                    style={
+                        styles.header
+                    }
+                >
+
+                    <View
+                        style={{
+                            flexDirection:
+                                'row',
+                            alignItems:
+                                'center',
+                        }}
+                    >
+
+                        <Image
+                            source={{
+                                uri:
+                                    currentStory.userImage,
+                            }}
                             style={
-                                styles.progressBg
+                                styles.userImage
+                            }
+                        />
+
+                        <Text
+                            style={
+                                styles.name
                             }
                         >
 
-                            {i ===
-                                index && (
+                            {
+                                currentStory.userName
+                            }
 
-                                    <Animated.View
-                                        style={[
-                                            styles.progress,
-                                            {
-                                                width:
-                                                    progress.interpolate(
-                                                        {
-                                                            inputRange:
-                                                                [
-                                                                    0,
-                                                                    1,
-                                                                ],
+                        </Text>
 
-                                                            outputRange:
-                                                                [
-                                                                    '0%',
-                                                                    '100%',
-                                                                ],
-                                                        }
-                                                    ),
-                                            },
-                                        ]}
+                    </View>
+
+                    <View
+                        style={{
+                            flexDirection:
+                                'row',
+                            alignItems:
+                                'center',
+                        }}
+                    >
+
+                        {/* DELETE BUTTON */}
+
+                        {
+                            currentStory.userId ===
+                            auth.currentUser
+                                ?.uid && (
+
+                                <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    onPress={
+                                        deleteStory
+                                    }
+                                    style={
+                                        styles.deleteBtn
+                                    }
+                                >
+
+                                    <Ionicons
+                                        name="trash"
+                                        size={24}
+                                        color="#fff"
                                     />
-                                )}
-                        </View>
-                    )
-                )}
 
-            </View>
+                                </TouchableOpacity>
+                            )
+                        }
 
-            {/* HEADER */}
+                        {/* CLOSE BUTTON */}
 
-            <View
-                style={
-                    styles.header
-                }
-            >
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() =>
+                                navigation.goBack()
+                            }
+                            style={
+                                styles.iconBtn
+                            }
+                        >
 
-                <View
-                    style={{
-                        flexDirection:
-                            'row',
-                        alignItems:
-                            'center',
-                    }}
-                >
+                            <Ionicons
+                                name="close"
+                                size={28}
+                                color="#fff"
+                            />
+
+                        </TouchableOpacity>
+
+                    </View>
+
+                </View>
+
+                {/* MEDIA */}
+
+                {currentStory.type ===
+                    'image' ? (
 
                     <Image
                         source={{
                             uri:
-                                currentStory.userImage,
+                                currentStory.url,
                         }}
                         style={
-                            styles.userImage
+                            styles.media
                         }
+                        resizeMode="contain"
                     />
 
-                    <Text
+                ) : (
+
+                    <Video
+                        source={{
+                            uri:
+                                currentStory.url,
+                        }}
                         style={
-                            styles.name
+                            styles.media
                         }
-                    >
+                        resizeMode="contain"
+                        paused={false}
+                        repeat={false}
+                    />
 
-                        {
-                            currentStory.userName
-                        }
+                )}
 
-                    </Text>
-
-                </View>
+                {/* TOUCH */}
 
                 <View
-                    style={{
-                        flexDirection:
-                            'row',
-                    }}
+                    style={
+                        styles.touch
+                    }
                 >
 
-                    {currentStory.userId ===
-                        auth.currentUser
-                            ?.uid && (
+                    <TouchableOpacity
+                        style={{
+                            flex: 1,
+                        }}
+                        onPress={() => {
 
-                            <TouchableOpacity
-                                onPress={
-                                    deleteStory
-                                }
-                                style={
-                                    styles.iconBtn
-                                }
-                            >
+                            if (
+                                index > 0
+                            ) {
 
-                                <Ionicons
-                                    name="trash"
-                                    size={24}
-                                    color="#fff"
-                                />
-
-                            </TouchableOpacity>
-                        )}
+                                setIndex(
+                                    index - 1
+                                );
+                            }
+                        }}
+                    />
 
                     <TouchableOpacity
-                        onPress={() =>
-                            navigation.goBack()
-                        }
-                        style={
-                            styles.iconBtn
-                        }
-                    >
+                        style={{
+                            flex: 1,
+                        }}
+                        onPress={() => {
 
-                        <Ionicons
-                            name="close"
-                            size={28}
-                            color="#fff"
-                        />
+                            if (
+                                index <
+                                stories.length - 1
+                            ) {
 
-                    </TouchableOpacity>
+                                setIndex(
+                                    index + 1
+                                );
+
+                            } else {
+
+                                navigation.goBack();
+                            }
+                        }}
+                    />
 
                 </View>
 
             </View>
 
-            {/* MEDIA */}
-
-            {currentStory.type ===
-                'image' ? (
-
-                <Image
-                    source={{
-                        uri:
-                            currentStory.url,
-                    }}
-                    style={
-                        styles.media
-                    }
-                    resizeMode="contain"
-                />
-
-            ) : (
-
-                <Video
-                    source={{
-                        uri:
-                            currentStory.url,
-                    }}
-                    style={
-                        styles.media
-                    }
-                    resizeMode="contain"
-                    paused={false}
-                />
-
-            )}
-
-            {/* TOUCH */}
-
-            <View
-                style={
-                    styles.touch
-                }
-            >
-
-                <TouchableOpacity
-                    style={{
-                        flex: 1,
-                    }}
-                    onPress={() => {
-
-                        if (
-                            index > 0
-                        ) {
-
-                            setIndex(
-                                index - 1
-                            );
-                        }
-                    }}
-                />
-
-                <TouchableOpacity
-                    style={{
-                        flex: 1,
-                    }}
-                    onPress={() => {
-
-                        if (
-                            index <
-                            stories.length - 1
-                        ) {
-
-                            setIndex(
-                                index + 1
-                            );
-                        }
-                    }}
-                />
-
-            </View>
-
-        </View>
         </AppContainer>
     );
 }
@@ -444,6 +481,10 @@ const styles =
         },
 
         iconBtn: {
+            marginLeft: 14,
+        },
+
+        deleteBtn: {
             marginLeft: 14,
         },
     });

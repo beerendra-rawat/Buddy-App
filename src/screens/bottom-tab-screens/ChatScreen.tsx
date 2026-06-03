@@ -606,6 +606,10 @@ export default function ChatScreen() {
     // STORY ITEM
     // ==========================
 
+    // ==========================
+    // STORY ITEM
+    // ==========================
+
     const renderStoryItem = ({
         item,
     }: {
@@ -643,7 +647,23 @@ export default function ChatScreen() {
                             'Story',
                             {
                                 stories:
-                                    item.media,
+                                    item.media.map(
+                                        media => ({
+                                            ...media,
+
+                                            storyId:
+                                                item.id,
+
+                                            userId:
+                                                item.userId,
+
+                                            userName:
+                                                item.userName,
+
+                                            userImage:
+                                                item.userImage,
+                                        })
+                                    ),
 
                                 user:
                                     item.userName,
@@ -701,35 +721,6 @@ export default function ChatScreen() {
                                 <Ionicons
                                     name="add"
                                     size={16}
-                                    color="#FFFFFF"
-                                />
-
-                            </TouchableOpacity>
-
-                        )
-                    }
-
-                    {/* DELETE STORY BUTTON */}
-
-                    {
-                        isMine &&
-                        item.media.length > 0 && (
-
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                style={
-                                    styles.deleteButton
-                                }
-                                onPress={() =>
-                                    deleteStory(
-                                        item.id
-                                    )
-                                }
-                            >
-
-                                <Ionicons
-                                    name="trash"
-                                    size={14}
                                     color="#FFFFFF"
                                 />
 
