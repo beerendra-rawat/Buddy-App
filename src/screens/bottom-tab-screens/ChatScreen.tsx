@@ -25,6 +25,9 @@ import {
     deleteDoc,
     doc,
     getDoc,
+    updateDoc,
+    where,
+    getDocs,
 } from 'firebase/firestore';
 
 import {
@@ -48,9 +51,7 @@ import UserAvatar from '../../components/common/UserAvatar';
 
 import ChatItem from '../../components/chat/ChatItem';
 
-import {
-    COLORS,
-} from '../../constants/colors';
+import { COLORS, } from '../../constants/colors';
 
 type MediaType = {
     type: 'image' | 'video';
@@ -133,114 +134,118 @@ export default function ChatScreen() {
     // STORIES
     // ==========================
 
+    // ==========================
+    // STORIES
+    // ==========================
+
     useEffect(() => {
 
         const q = query(
             collection(db, 'stories'),
-            orderBy(
-                'createdAt',
-                'desc'
-            )
+            orderBy('createdAt', 'desc')
         );
 
-        const unsubscribe =
-            onSnapshot(
-                q,
-                async snapshot => {
+        const unsubscribe = onSnapshot(
+            q,
+            async snapshot => {
 
-                    const now =
-                        Date.now();
+                const now = Date.now();
 
-                    const tempStories:
-                        StoryType[] = [];
+                const groupedStories: any = {};
 
-                    for (const item of snapshot.docs) {
+                for (const item of snapshot.docs) {
 
-                        const data =
-                            item.data();
+                    const data = item.data();
 
-                        const expireTime =
-                            data?.expiresAt
-                                ?.toDate()
-                                ?.getTime?.() || 0;
+                    const expireTime =
+                        data?.expiresAt
+                            ?.toDate()
+                            ?.getTime?.() || 0;
 
-                        if (
-                            expireTime > now
-                        ) {
+                    // AUTO DELETE EXPIRED STORY
+                    if (expireTime <= now) {
 
-                            // GET USER DATA
-                            let profileImage = '';
+                        await deleteDoc(
+                            doc(db, 'stories', item.id)
+                        );
 
-                            try {
-
-                                const userSnap =
-                                    await getDoc(
-                                        doc(
-                                            db,
-                                            'users',
-                                            data.userId
-                                        )
-                                    );
-
-                                if (
-                                    userSnap.exists()
-                                ) {
-
-                                    const userData =
-                                        userSnap.data();
-
-                                    profileImage =
-                                        userData?.photoURL ||
-                                        userData?.profileImage ||
-                                        '';
-                                }
-
-                            } catch (error) {
-
-                                console.log(
-                                    'Story User Error:',
-                                    error
-                                );
-                            }
-
-                            tempStories.push({
-                                id: item.id,
-
-                                userId:
-                                    data.userId,
-
-                                userName:
-                                    data.userName ||
-                                    'User',
-
-                                userImage:
-                                    profileImage,
-
-                                media:
-                                    data.media ||
-                                    [],
-                            });
-
-                        } else {
-
-                            await deleteDoc(
-                                doc(
-                                    db,
-                                    'stories',
-                                    item.id
-                                )
-                            );
-                        }
+                        continue;
                     }
 
-                    setStories(
-                        tempStories
-                    );
-                }
-            );
+                    let profileImage = '';
 
-        return () =>
-            unsubscribe();
+                    try {
+
+                        const userSnap = await getDoc(
+                            doc(
+                                db,
+                                'users',
+                                data.userId
+                            )
+                        );
+
+                        if (userSnap.exists()) {
+
+                            const userData =
+                                userSnap.data();
+
+                            profileImage =
+                                userData?.photoURL ||
+                                userData?.profileImage ||
+                                '';
+                        }
+
+                    } catch (error) {
+
+                        console.log(
+                            'Story User Error:',
+                            error
+                        );
+                    }
+
+                    // GROUP SAME USER STORIES
+                    if (
+                        groupedStories[data.userId]
+                    ) {
+
+                        groupedStories[
+                            data.userId
+                        ].media.push(
+                            ...(data.media || [])
+                        );
+
+                    } else {
+
+                        groupedStories[
+                            data.userId
+                        ] = {
+
+                            id: item.id,
+
+                            userId: data.userId,
+
+                            userName:
+                                data.userName ||
+                                'User',
+
+                            userImage:
+                                profileImage,
+
+                            media:
+                                data.media || [],
+                        };
+                    }
+                }
+
+                setStories(
+                    Object.values(
+                        groupedStories
+                    ) as StoryType[]
+                );
+            }
+        );
+
+        return () => unsubscribe();
 
     }, []);
 
@@ -372,72 +377,83 @@ export default function ChatScreen() {
     // PICK STORY
     // ==========================
 
-    const pickStory =
-        async () => {
+    // ==========================
+    // PICK STORY
+    // ==========================
 
-            try {
+    const pickStory = async () => {
 
-                const result =
-                    await ImagePicker.launchImageLibraryAsync(
-                        {
-                            mediaTypes:
-                                ImagePicker.MediaTypeOptions.All,
+        try {
 
-                            allowsMultipleSelection:
-                                true,
+            const result =
+                await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes:
+                        ImagePicker.MediaTypeOptions.All,
 
-                            quality: 1,
-                        }
-                    );
+                    allowsMultipleSelection: true,
 
-                if (
-                    result.canceled
-                ) {
-                    return;
-                }
+                    quality: 1,
+                });
 
-                const media:
-                    MediaType[] = [];
+            if (result.canceled) {
+                return;
+            }
 
-                for (const asset of result.assets) {
+            const newMedia: MediaType[] = [];
 
-                    media.push({
-                        type:
-                            asset.type ===
-                                'video'
-                                ? 'video'
-                                : 'image',
+            for (const asset of result.assets) {
 
-                        url:
-                            asset.uri,
+                newMedia.push({
 
-                        duration:
-                            asset.type ===
-                                'video'
-                                ? 30
-                                : 5,
-                    });
-                }
+                    type:
+                        asset.type === 'video'
+                            ? 'video'
+                            : 'image',
 
-                await addDoc(
-                    collection(
+                    url: asset.uri,
+
+                    // VIDEO 30 SEC
+                    duration:
+                        asset.type === 'video'
+                            ? 30
+                            : 5,
+                });
+            }
+
+            // CHECK EXISTING STORY
+            const q = query(
+                collection(db, 'stories'),
+                where(
+                    'userId',
+                    '==',
+                    currentUser?.uid
+                )
+            );
+
+            const querySnapshot =
+                await getDocs(q);
+
+            // IF STORY EXISTS -> UPDATE
+            if (!querySnapshot.empty) {
+
+                const existingDoc =
+                    querySnapshot.docs[0];
+
+                const oldMedia =
+                    existingDoc.data().media || [];
+
+                await updateDoc(
+                    doc(
                         db,
-                        'stories'
+                        'stories',
+                        existingDoc.id
                     ),
                     {
-                        userId:
-                            currentUser?.uid,
 
-                        userName:
-                            myData?.name ||
-                            'User',
-
-                        userImage:
-                            myData?.photoURL ||
-                            myData?.profileImage ||
-                            '',
-
-                        media,
+                        media: [
+                            ...oldMedia,
+                            ...newMedia,
+                        ],
 
                         createdAt:
                             serverTimestamp(),
@@ -453,14 +469,50 @@ export default function ChatScreen() {
                     }
                 );
 
-            } catch (error) {
+            } else {
 
-                console.log(
-                    'Story Error:',
-                    error
+                // CREATE NEW STORY
+                await addDoc(
+                    collection(db, 'stories'),
+                    {
+
+                        userId:
+                            currentUser?.uid,
+
+                        userName:
+                            myData?.name ||
+                            'User',
+
+                        userImage:
+                            myData?.photoURL ||
+                            myData?.profileImage ||
+                            '',
+
+                        media: newMedia,
+
+                        createdAt:
+                            serverTimestamp(),
+
+                        expiresAt:
+                            new Date(
+                                Date.now() +
+                                24 *
+                                60 *
+                                60 *
+                                1000
+                            ),
+                    }
                 );
             }
-        };
+
+        } catch (error) {
+
+            console.log(
+                'Story Error:',
+                error
+            );
+        }
+    };
 
     // ==========================
     // DELETE STORY
@@ -550,6 +602,10 @@ export default function ChatScreen() {
     // STORY ITEM
     // ==========================
 
+    // ==========================
+    // STORY ITEM
+    // ==========================
+
     const renderStoryItem = ({
         item,
     }: {
@@ -594,20 +650,13 @@ export default function ChatScreen() {
 
                                 image:
                                     item.userImage,
+
+                                storyId:
+                                    item.id,
+
+                                isMine:
+                                    isMine,
                             }
-                        );
-                    }
-                }}
-                onLongPress={() => {
-
-                    // DELETE MY STORY
-                    if (
-                        isMine &&
-                        item.media.length > 0
-                    ) {
-
-                        deleteStory(
-                            item.id
                         );
                     }
                 }}
@@ -634,6 +683,8 @@ export default function ChatScreen() {
 
                     </View>
 
+                    {/* ADD STORY BUTTON */}
+
                     {
                         isMine && (
 
@@ -650,6 +701,35 @@ export default function ChatScreen() {
                                 <Ionicons
                                     name="add"
                                     size={16}
+                                    color="#FFFFFF"
+                                />
+
+                            </TouchableOpacity>
+
+                        )
+                    }
+
+                    {/* DELETE STORY BUTTON */}
+
+                    {
+                        isMine &&
+                        item.media.length > 0 && (
+
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                style={
+                                    styles.deleteButton
+                                }
+                                onPress={() =>
+                                    deleteStory(
+                                        item.id
+                                    )
+                                }
+                            >
+
+                                <Ionicons
+                                    name="trash"
+                                    size={14}
                                     color="#FFFFFF"
                                 />
 
@@ -769,6 +849,22 @@ const styles = StyleSheet.create({
         position: 'absolute',
         right: 0,
         bottom: 0,
+        zIndex: 99,
+    },
+
+    deleteButton: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#FF3B30',
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        borderWidth: 2,
+        borderColor: COLORS.white,
+        zIndex: 99,
     },
 
     storyName: {

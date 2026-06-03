@@ -8,13 +8,12 @@ import {
     View,
     Image,
     Dimensions,
-    ActivityIndicator,
-    StyleSheet,
     Animated,
     TouchableOpacity,
+    StyleSheet,
+    StatusBar,
     Text,
     Alert,
-    StatusBar,
 } from 'react-native';
 
 import Video from 'react-native-video';
@@ -24,36 +23,20 @@ import {
 } from '@expo/vector-icons';
 
 import {
-    deleteDoc,
-    doc,
-    getDoc,
-} from 'firebase/firestore';
-
-import {
     auth,
     db,
 } from '../services/firebase';
+
+import {
+    deleteDoc,
+    doc,
+} from 'firebase/firestore';
+import AppContainer from '../components/common/AppContainer';
 
 const {
     width,
     height,
 } = Dimensions.get('window');
-
-type StoryItem = {
-    id?: string;
-
-    type: 'image' | 'video';
-
-    url: string;
-
-    duration?: number;
-
-    username?: string;
-
-    userImage?: string;
-
-    userId?: string;
-};
 
 export default function Story({
     route,
@@ -61,25 +44,11 @@ export default function Story({
 }: any) {
 
     const {
-        stories = [],
-    } = route.params || {};
-
-    const currentUserId =
-        auth.currentUser?.uid;
-
-    const [storyList, setStoryList] =
-        useState(stories);
+        stories,
+    } = route.params;
 
     const [index, setIndex] =
         useState(0);
-
-    const [userImage, setUserImage] =
-        useState(
-            'https://i.pravatar.cc/300'
-        );
-
-    const [userName, setUserName] =
-        useState('User');
 
     const progress =
         useRef(
@@ -87,94 +56,19 @@ export default function Story({
         ).current;
 
     const currentStory =
-        storyList[index];
-
-    // =========================
-    // GET USER DATA
-    // =========================
-
-    useEffect(() => {
-
-        const getUserData =
-            async () => {
-
-                try {
-
-                    if (
-                        !currentStory?.userId
-                    ) {
-                        return;
-                    }
-
-                    const userSnap =
-                        await getDoc(
-                            doc(
-                                db,
-                                'users',
-                                currentStory.userId
-                            )
-                        );
-
-                    if (
-                        userSnap.exists()
-                    ) {
-
-                        const data =
-                            userSnap.data();
-
-                        setUserName(
-                            data?.name ||
-                            data?.username ||
-                            currentStory?.username ||
-                            'User'
-                        );
-
-                        const image =
-                            data?.photoURL ||
-                            data?.profileImage ||
-                            data?.image ||
-                            currentStory?.userImage;
-
-                        setUserImage(
-                            image &&
-                                image.trim() !== ''
-                                ? image
-                                : 'https://i.pravatar.cc/300'
-                        );
-                    }
-
-                } catch (error) {
-
-                    console.log(
-                        'User Error:',
-                        error
-                    );
-                }
-            };
-
-        getUserData();
-
-    }, [index]);
-
-    // =========================
-    // STORY TIMER
-    // =========================
+        stories[index];
 
     useEffect(() => {
 
         progress.setValue(0);
 
-        const duration =
-            (
-                currentStory?.duration ||
-                5
-            ) * 1000;
-
         Animated.timing(
             progress,
             {
                 toValue: 1,
-                duration,
+                duration:
+                    (currentStory?.duration ||
+                        5) * 1000,
                 useNativeDriver:
                     false,
             }
@@ -185,7 +79,7 @@ export default function Story({
 
                 if (
                     index <
-                    storyList.length - 1
+                    stories.length - 1
                 ) {
 
                     setIndex(
@@ -198,340 +92,195 @@ export default function Story({
                     navigation.goBack();
                 }
 
-            }, duration);
+            }, 5000);
 
-        return () => {
-
-            clearTimeout(
-                timer
-            );
-        };
+        return () =>
+            clearTimeout(timer);
 
     }, [index]);
 
-    // =========================
-    // NEXT STORY
-    // =========================
-
-    const nextStory =
-        () => {
-
-            if (
-                index <
-                storyList.length - 1
-            ) {
-
-                setIndex(
-                    prev =>
-                        prev + 1
-                );
-
-            } else {
-
-                navigation.goBack();
-            }
-        };
-
-    // =========================
-    // PREVIOUS STORY
-    // =========================
-
-    const previousStory =
-        () => {
-
-            if (index > 0) {
-
-                setIndex(
-                    prev =>
-                        prev - 1
-                );
-            }
-        };
-
-    // =========================
-    // DELETE STORY
-    // =========================
-
-    const handleDeleteStory =
-        () => {
+    const deleteStory =
+        async () => {
 
             Alert.alert(
-                'Delete Story',
-                'Are you sure?',
+                'Delete',
+                'Delete Story?',
                 [
                     {
                         text: 'Cancel',
-                        style: 'cancel',
                     },
 
                     {
                         text: 'Delete',
 
-                        style:
-                            'destructive',
-
                         onPress:
                             async () => {
 
-                                try {
+                                await deleteDoc(
+                                    doc(
+                                        db,
+                                        'stories',
+                                        currentStory.id
+                                    )
+                                );
 
-                                    if (
-                                        currentStory?.id
-                                    ) {
-
-                                        await deleteDoc(
-                                            doc(
-                                                db,
-                                                'stories',
-                                                currentStory.id
-                                            )
-                                        );
-
-                                        const updated =
-                                            storyList.filter(
-                                                (
-                                                    item: StoryItem
-                                                ) =>
-                                                    item.id !==
-                                                    currentStory.id
-                                            );
-
-                                        setStoryList(
-                                            updated
-                                        );
-
-                                        if (
-                                            updated.length ===
-                                            0
-                                        ) {
-
-                                            navigation.goBack();
-
-                                            return;
-                                        }
-
-                                        if (
-                                            index >=
-                                            updated.length
-                                        ) {
-
-                                            setIndex(
-                                                updated.length -
-                                                1
-                                            );
-                                        }
-                                    }
-
-                                } catch (error) {
-
-                                    console.log(
-                                        'Delete Error:',
-                                        error
-                                    );
-                                }
+                                navigation.goBack();
                             },
                     },
                 ]
             );
         };
 
-    // =========================
-    // LOADING
-    // =========================
-
-    if (
-        !storyList ||
-        storyList.length === 0
-    ) {
-
-        return (
-
-            <View
-                style={
-                    styles.loaderContainer
-                }
-            >
-
-                <ActivityIndicator
-                    size="large"
-                    color="#FFFFFF"
-                />
-
-            </View>
-        );
-    }
-
-    // =========================
-    // UI
-    // =========================
-
     return (
+        <AppContainer>
 
         <View
-            style={styles.container}
+            style={
+                styles.container
+            }
         >
 
             <StatusBar
-                barStyle="light-content"
-                backgroundColor="#000"
+                hidden
             />
 
-            {/* ================= */}
-            {/* PROGRESS */}
-            {/* ================= */}
+            {/* TOP */}
 
             <View
                 style={
-                    styles.progressContainer
+                    styles.topContainer
                 }
             >
 
-                {
-                    storyList.map(
-                        (
-                            _: any,
-                            i: number
-                        ) => (
+                {stories.map(
+                    (
+                        _: any,
+                        i: number
+                    ) => (
 
-                            <View
-                                key={i}
-                                style={
-                                    styles.progressBg
-                                }
-                            >
+                        <View
+                            key={i}
+                            style={
+                                styles.progressBg
+                            }
+                        >
 
-                                {
-                                    i <
-                                        index ? (
+                            {i ===
+                                index && (
 
-                                        <View
-                                            style={
-                                                styles.progressFull
-                                            }
-                                        />
+                                    <Animated.View
+                                        style={[
+                                            styles.progress,
+                                            {
+                                                width:
+                                                    progress.interpolate(
+                                                        {
+                                                            inputRange:
+                                                                [
+                                                                    0,
+                                                                    1,
+                                                                ],
 
-                                    ) : i ===
-                                        index ? (
-
-                                        <Animated.View
-                                            style={[
-                                                styles.progressAnimated,
-
-                                                {
-                                                    width:
-                                                        progress.interpolate(
-                                                            {
-                                                                inputRange:
-                                                                    [
-                                                                        0,
-                                                                        1,
-                                                                    ],
-
-                                                                outputRange:
-                                                                    [
-                                                                        '0%',
-                                                                        '100%',
-                                                                    ],
-                                                            }
-                                                        ),
-                                                },
-                                            ]}
-                                        />
-
-                                    ) : null
-                                }
-
-                            </View>
-                        )
+                                                            outputRange:
+                                                                [
+                                                                    '0%',
+                                                                    '100%',
+                                                                ],
+                                                        }
+                                                    ),
+                                            },
+                                        ]}
+                                    />
+                                )}
+                        </View>
                     )
-                }
+                )}
 
             </View>
 
-            {/* ================= */}
             {/* HEADER */}
-            {/* ================= */}
 
             <View
                 style={
-                    styles.headerContainer
+                    styles.header
                 }
-                pointerEvents="box-none"
             >
 
                 <View
-                    style={
-                        styles.userInfo
-                    }
+                    style={{
+                        flexDirection:
+                            'row',
+                        alignItems:
+                            'center',
+                    }}
                 >
 
                     <Image
                         source={{
                             uri:
-                                userImage,
+                                currentStory.userImage,
                         }}
                         style={
-                            styles.profileImage
+                            styles.userImage
                         }
                     />
 
                     <Text
                         style={
-                            styles.username
+                            styles.name
                         }
-                        numberOfLines={1}
                     >
 
-                        {userName}
+                        {
+                            currentStory.userName
+                        }
 
                     </Text>
 
                 </View>
 
                 <View
-                    style={
-                        styles.rightButtons
-                    }
+                    style={{
+                        flexDirection:
+                            'row',
+                    }}
                 >
 
-                    {
-                        currentStory?.userId ===
-                            currentUserId && (
+                    {currentStory.userId ===
+                        auth.currentUser
+                            ?.uid && (
 
                             <TouchableOpacity
-                                activeOpacity={0.8}
-                                style={
-                                    styles.deleteButton
-                                }
                                 onPress={
-                                    handleDeleteStory
+                                    deleteStory
+                                }
+                                style={
+                                    styles.iconBtn
                                 }
                             >
 
                                 <Ionicons
                                     name="trash"
-                                    size={22}
-                                    color="#FFFFFF"
+                                    size={24}
+                                    color="#fff"
                                 />
 
                             </TouchableOpacity>
-                        )
-                    }
+                        )}
 
                     <TouchableOpacity
-                        activeOpacity={0.8}
-                        style={
-                            styles.closeButton
-                        }
                         onPress={() =>
                             navigation.goBack()
+                        }
+                        style={
+                            styles.iconBtn
                         }
                     >
 
                         <Ionicons
                             name="close"
-                            size={26}
-                            color="#FFFFFF"
+                            size={28}
+                            color="#fff"
                         />
 
                     </TouchableOpacity>
@@ -540,245 +289,161 @@ export default function Story({
 
             </View>
 
-            {/* ================= */}
-            {/* STORY */}
-            {/* ================= */}
+            {/* MEDIA */}
 
-            {
-                currentStory?.type ===
-                    'image' ? (
+            {currentStory.type ===
+                'image' ? (
 
-                    <Image
-                        source={{
-                            uri:
-                                currentStory?.url,
-                        }}
-                        style={
-                            styles.storyMedia
-                        }
-                        resizeMode="contain"
-                    />
+                <Image
+                    source={{
+                        uri:
+                            currentStory.url,
+                    }}
+                    style={
+                        styles.media
+                    }
+                    resizeMode="contain"
+                />
 
-                ) : (
+            ) : (
 
-                    <Video
-                        source={{
-                            uri:
-                                currentStory?.url,
-                        }}
-                        style={
-                            styles.storyMedia
-                        }
-                        resizeMode="contain"
-                        paused={false}
-                        repeat={false}
-                    />
+                <Video
+                    source={{
+                        uri:
+                            currentStory.url,
+                    }}
+                    style={
+                        styles.media
+                    }
+                    resizeMode="contain"
+                    paused={false}
+                />
 
-                )
-            }
+            )}
 
-            {/* ================= */}
             {/* TOUCH */}
-            {/* ================= */}
 
             <View
                 style={
-                    styles.touchContainer
+                    styles.touch
                 }
-                pointerEvents="box-none"
             >
 
                 <TouchableOpacity
-                    style={
-                        styles.touchLeft
-                    }
-                    activeOpacity={1}
-                    onPress={
-                        previousStory
-                    }
+                    style={{
+                        flex: 1,
+                    }}
+                    onPress={() => {
+
+                        if (
+                            index > 0
+                        ) {
+
+                            setIndex(
+                                index - 1
+                            );
+                        }
+                    }}
                 />
 
                 <TouchableOpacity
-                    style={
-                        styles.touchRight
-                    }
-                    activeOpacity={1}
-                    onPress={
-                        nextStory
-                    }
+                    style={{
+                        flex: 1,
+                    }}
+                    onPress={() => {
+
+                        if (
+                            index <
+                            stories.length - 1
+                        ) {
+
+                            setIndex(
+                                index + 1
+                            );
+                        }
+                    }}
                 />
 
             </View>
 
         </View>
+        </AppContainer>
     );
 }
 
-const styles = StyleSheet.create({
+const styles =
+    StyleSheet.create({
 
-    container: {
-        flex: 1,
-        backgroundColor:
-            '#000000',
-    },
+        container: {
+            flex: 1,
+            backgroundColor:
+                '#000',
+        },
 
-    loaderContainer: {
-        flex: 1,
-        justifyContent:
-            'center',
-        alignItems:
-            'center',
-        backgroundColor:
-            '#000000',
-    },
+        topContainer: {
+            position: 'absolute',
+            top: 55,
+            left: 10,
+            right: 10,
+            flexDirection: 'row',
+            zIndex: 999,
+        },
 
-    // ======================
-    // PROGRESS
-    // ======================
+        progressBg: {
+            flex: 1,
+            height: 4,
+            backgroundColor:
+                'rgba(255,255,255,0.3)',
+            marginHorizontal: 2,
+            borderRadius: 10,
+            overflow: 'hidden',
+        },
 
-    progressContainer: {
-        position: 'absolute',
-        top: 12,
-        left: 10,
-        right: 10,
-        flexDirection: 'row',
-        zIndex: 9999,
-    },
+        progress: {
+            height: '100%',
+            backgroundColor:
+                '#fff',
+        },
 
-    progressBg: {
-        flex: 1,
-        height: 4,
-        backgroundColor:
-            'rgba(255,255,255,0.3)',
-        marginHorizontal: 2,
-        borderRadius: 10,
-        overflow: 'hidden',
-    },
+        header: {
+            position: 'absolute',
+            top: 72,
+            left: 14,
+            right: 14,
+            zIndex: 999,
+            flexDirection: 'row',
+            justifyContent:
+                'space-between',
+            alignItems:
+                'center',
+        },
 
-    progressFull: {
-        width: '100%',
-        height: '100%',
-        backgroundColor:
-            '#FFFFFF',
-    },
+        userImage: {
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+        },
 
-    progressAnimated: {
-        height: '100%',
-        backgroundColor:
-            '#FFFFFF',
-    },
+        name: {
+            color: '#fff',
+            marginLeft: 10,
+            fontSize: 16,
+            fontWeight: '700',
+        },
 
-    // ======================
-    // HEADER
-    // ======================
+        media: {
+            width,
+            height,
+        },
 
-    headerContainer: {
-        position: 'absolute',
-        top: 35,
-        left: 12,
-        right: 12,
+        touch: {
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            flexDirection: 'row',
+        },
 
-        flexDirection: 'row',
-
-        justifyContent:
-            'space-between',
-
-        alignItems: 'center',
-
-        zIndex: 99999,
-
-        backgroundColor:
-            'rgba(0,0,0,0.35)',
-
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-
-        borderRadius: 14,
-    },
-
-    userInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-
-    profileImage: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor:
-            '#333',
-    },
-
-    username: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
-        marginLeft: 10,
-        maxWidth: 160,
-    },
-
-    rightButtons: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-
-    deleteButton: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-
-        justifyContent:
-            'center',
-
-        alignItems: 'center',
-
-        backgroundColor:
-            'rgba(255,0,0,0.6)',
-
-        marginRight: 8,
-    },
-
-    closeButton: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-
-        justifyContent:
-            'center',
-
-        alignItems: 'center',
-
-        backgroundColor:
-            'rgba(0,0,0,0.6)',
-    },
-
-    // ======================
-    // MEDIA
-    // ======================
-
-    storyMedia: {
-        width,
-        height,
-    },
-
-    // ======================
-    // TOUCH
-    // ======================
-
-    touchContainer: {
-        position: 'absolute',
-        width: '100%',
-        height: '100%',
-        flexDirection: 'row',
-    },
-
-    touchLeft: {
-        flex: 1,
-    },
-
-    touchRight: {
-        flex: 1,
-    },
-
-});
+        iconBtn: {
+            marginLeft: 14,
+        },
+    });
