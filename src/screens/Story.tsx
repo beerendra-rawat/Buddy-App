@@ -30,6 +30,8 @@ import {
 import {
     deleteDoc,
     doc,
+    updateDoc,
+    getDoc,
 } from 'firebase/firestore';
 
 import AppContainer from '../components/common/AppContainer';
@@ -129,13 +131,59 @@ export default function Story({
 
                                 try {
 
-                                    await deleteDoc(
+                                    const storyRef =
                                         doc(
                                             db,
                                             'stories',
                                             currentStory.storyId
-                                        )
-                                    );
+                                        );
+
+                                    const snap =
+                                        await getDoc(
+                                            storyRef
+                                        );
+
+                                    if (
+                                        !snap.exists()
+                                    ) {
+                                        return;
+                                    }
+
+                                    const data =
+                                        snap.data();
+
+                                    const updatedMedia =
+                                        data.media.filter(
+                                            (
+                                                item: any
+                                            ) =>
+                                                item.url !==
+                                                currentStory.url
+                                        );
+
+                                    // DELETE FULL DOC
+                                    // IF NO STORY LEFT
+
+                                    if (
+                                        updatedMedia.length === 0
+                                    ) {
+
+                                        await deleteDoc(
+                                            storyRef
+                                        );
+
+                                    } else {
+
+                                        // UPDATE REMAINING STORIES
+
+                                        await updateDoc(
+                                            storyRef,
+                                            {
+                                                media:
+                                                    updatedMedia,
+                                            }
+                                        );
+                                    }
 
                                     navigation.goBack();
 
@@ -289,7 +337,7 @@ export default function Story({
                                     <Ionicons
                                         name="trash"
                                         size={24}
-                                        color="#fff"
+                                        color="#6487E8"
                                     />
 
                                 </TouchableOpacity>
@@ -311,7 +359,7 @@ export default function Story({
                             <Ionicons
                                 name="close"
                                 size={28}
-                                color="#fff"
+                                color="#6487E8"
                             />
 
                         </TouchableOpacity>
@@ -395,7 +443,7 @@ export default function Story({
 
                             } else {
 
-                                navigation.goBack();
+                                navigation.goBack()
                             }
                         }}
                     />
