@@ -1,8 +1,4 @@
-import React, {
-    useEffect,
-    useState,
-} from 'react';
-
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -14,9 +10,7 @@ import {
 
 import * as ImagePicker from 'expo-image-picker';
 
-import {
-    MaterialIcons,
-} from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 
 import {
     onAuthStateChanged,
@@ -34,126 +28,92 @@ import {
     db,
 } from '../../services/firebase';
 
-import AppContainer from
-    '../../components/common/AppContainer';
-
-import AppInput from
-    '../../components/common/AppInput';
-
-import AppButton from
-    '../../components/common/AppButton';
-
-import UserAvatar from
-    '../../components/common/UserAvatar';
-
-import SkeletonLoader from
-    '../../components/common/SkeletonLoader';
-
 import {
-    COLORS,
-} from '../../constants/colors';
+    uploadImageToCloudinary,
+} from '../../services/cloudinary';
+
+import AppContainer from '../../components/common/AppContainer';
+import AppInput from '../../components/common/AppInput';
+import AppButton from '../../components/common/AppButton';
+import UserAvatar from '../../components/common/UserAvatar';
+import SkeletonLoader from '../../components/common/SkeletonLoader';
+
+import { COLORS } from '../../constants/colors';
 
 export default function ProfileScreen() {
 
-    const [loading, setLoading] =
-        useState(true);
+    const [loading, setLoading] = useState(true);
+    const [isEditing, setIsEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
 
-    const [isEditing, setIsEditing] =
-        useState(false);
-
-    const [saving, setSaving] =
-        useState(false);
-
-    const [userData, setUserData] =
-        useState({
-            username: '',
-            email: '',
-            bio: '',
-            photoURL: '',
-        });
-
-    // ==========================
-    // GET USER DATA
-    // ==========================
+    const [userData, setUserData] = useState({
+        username: '',
+        email: '',
+        bio: '',
+        photoURL: '',
+    });
 
     useEffect(() => {
 
-        const unsubscribe =
-            onAuthStateChanged(
-                auth,
-                async user => {
+        const unsubscribe = onAuthStateChanged(
+            auth,
+            async user => {
 
-                    if (!user) {
+                if (!user) {
+                    setLoading(false);
+                    return;
+                }
 
-                        setLoading(false);
+                try {
 
-                        return;
-                    }
+                    const userRef = doc(
+                        db,
+                        'users',
+                        user.uid
+                    );
 
-                    try {
+                    const userSnap = await getDoc(userRef);
 
-                        const userRef =
-                            doc(
-                                db,
-                                'users',
-                                user.uid
-                            );
+                    if (userSnap.exists()) {
 
-                        const userSnap =
-                            await getDoc(
-                                userRef
-                            );
-
-                        if (
-                            userSnap.exists()
-                        ) {
-
-                            const data =
-                                userSnap.data();
-
-                            setUserData({
-                                username:
-                                    data.name ||
-                                    '',
-
-                                email:
-                                    data.email ||
-                                    '',
-
-                                bio:
-                                    data.bio ||
-                                    '',
-
-                                photoURL:
-                                    data.photoURL ||
-                                    '',
-                            });
-                        }
-
-                    } catch (error) {
+                        const data = userSnap.data();
 
                         console.log(
-                            error
+                            'Firestore User Data:',
+                            data
                         );
 
-                    } finally {
+                        console.log(
+                            'Photo URL:',
+                            data.photoURL
+                        );
 
-                        setLoading(false);
+                        setUserData({
+                            username: data.name || '',
+                            email: data.email || '',
+                            bio: data.bio || '',
+                            photoURL: data.photoURL || '',
+                        });
                     }
+
+                } catch (error) {
+
+                    console.log(error);
+
+                } finally {
+
+                    setLoading(false);
                 }
-            );
+            }
+        );
 
         return unsubscribe;
 
     }, []);
 
-    // ==========================
-    // HANDLE CHANGE
-    // ==========================
-
     const handleChange = (
         key: string,
-        value: string
+        value: string,
     ) => {
 
         setUserData(prev => ({
@@ -162,363 +122,264 @@ export default function ProfileScreen() {
         }));
     };
 
-    // ==========================
-    // PICK IMAGE
-    // ==========================
+    const pickImage = async () => {
 
-    const pickImage =
-        async () => {
+        try {
 
-            try {
+            const permission =
+                await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-                const permission =
-                    await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-                if (
-                    !permission.granted
-                ) {
-
-                    Alert.alert(
-                        'Permission Required'
-                    );
-
-                    return;
-                }
-
-                const result =
-                    await ImagePicker.launchImageLibraryAsync(
-                        {
-                            mediaTypes:
-                                ImagePicker.MediaTypeOptions.Images,
-
-                            allowsEditing:
-                                true,
-
-                            aspect: [1, 1],
-
-                            quality: 1,
-                        }
-                    );
-
-                if (
-                    !result.canceled
-                ) {
-
-                    handleChange(
-                        'photoURL',
-                        result.assets[0]
-                            .uri
-                    );
-                }
-
-            } catch (error) {
-
-                console.log(error);
-            }
-        };
-
-    // ==========================
-    // UPDATE PROFILE
-    // ==========================
-
-    const handleUpdateProfile =
-        async () => {
-
-            try {
-
-                setSaving(true);
-
-                const currentUser =
-                    auth.currentUser;
-
-                if (!currentUser) {
-                    return;
-                }
-
-                await updateDoc(
-                    doc(
-                        db,
-                        'users',
-                        currentUser.uid
-                    ),
-                    {
-                        name:
-                            userData.username,
-
-                        bio:
-                            userData.bio,
-
-                        photoURL:
-                            userData.photoURL,
-                    }
-                );
+            if (!permission.granted) {
 
                 Alert.alert(
-                    'Success',
-                    'Profile updated successfully'
+                    'Permission Required'
                 );
 
-                setIsEditing(false);
+                return;
+            }
 
-            } catch (error) {
+            const result =
+                await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes:
+                        ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.8,
+                });
 
-                console.log(error);
+            if (result.canceled) {
+                return;
+            }
 
-                Alert.alert(
-                    'Error',
-                    'Failed to update profile'
+            setSaving(true);
+
+            const imageUrl =
+                await uploadImageToCloudinary(
+                    result.assets[0].uri
                 );
 
-            } finally {
+            handleChange(
+                'photoURL',
+                imageUrl
+            );
 
-                setSaving(false);
+        } catch (error) {
+
+            console.log(
+                'Image Upload Error:',
+                error
+            );
+
+            Alert.alert(
+                'Error',
+                'Failed to upload image'
+            );
+
+        } finally {
+
+            setSaving(false);
+        }
+    };
+
+    const handleUpdateProfile = async () => {
+
+        try {
+
+            setSaving(true);
+
+            const currentUser =
+                auth.currentUser;
+
+            if (!currentUser) {
+                return;
             }
-        };
 
-    // ==========================
-    // LOGOUT
-    // ==========================
+            await updateDoc(
+                doc(
+                    db,
+                    'users',
+                    currentUser.uid,
+                ),
+                {
+                    name: userData.username,
+                    bio: userData.bio,
+                    photoURL: userData.photoURL,
+                },
+            );
 
-    const handleLogout =
-        async () => {
+            Alert.alert(
+                'Success',
+                'Profile updated',
+            );
 
-            try {
+            setIsEditing(false);
 
-                await signOut(auth);
+        } catch (error) {
 
-            } catch (error) {
+            console.log(error);
 
-                console.log(error);
-            }
-        };
+            Alert.alert(
+                'Error',
+                'Failed to update profile',
+            );
 
-    // ==========================
-    // LOADING
-    // ==========================
+        } finally {
+
+            setSaving(false);
+        }
+    };
+
+    const handleLogout = async () => {
+
+        try {
+
+            await signOut(auth);
+
+        } catch (error) {
+
+            console.log(error);
+        }
+    };
 
     if (loading) {
         return <SkeletonLoader />;
     }
 
-    // ==========================
-    // UI
-    // ==========================
-
     return (
 
         <AppContainer>
 
-            {/* HEADER */}
-
-            <View
-                style={
-                    styles.header
-                }
-            >
-
-                <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={
-                        styles.editButton
-                    }
-                    onPress={() => {
-
-                        if (
-                            isEditing
-                        ) {
-
-                            handleUpdateProfile();
-
-                        } else {
-
-                            setIsEditing(
-                                true
-                            );
-                        }
-                    }}
-                >
-
-                    <MaterialIcons
-                        name={
-                            isEditing
-                                ? 'check'
-                                : 'edit'
-                        }
-                        size={20}
-                        color="#FFFFFF"
-                    />
-
-                </TouchableOpacity>
-
-            </View>
-
             <ScrollView
-                showsVerticalScrollIndicator={
-                    false
-                }
-                contentContainerStyle={
-                    styles.scrollContent
-                }
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.container}
             >
 
-                {/* PROFILE CARD */}
-
-                <View
-                    style={
-                        styles.profileCard
-                    }
-                >
-
-                    {/* IMAGE */}
+                <View style={styles.header}>
 
                     <TouchableOpacity
-                        activeOpacity={0.9}
-                        disabled={
-                            !isEditing
-                        }
-                        onPress={
-                            pickImage
-                        }
+                        style={styles.editButton}
+                        activeOpacity={0.8}
+                        onPress={() => {
+
+                            if (isEditing) {
+
+                                handleUpdateProfile();
+
+                            } else {
+
+                                setIsEditing(true);
+                            }
+                        }}
                     >
 
-                        <View
-                            style={
-                                styles.imageWrapper
+                        <MaterialIcons
+                            name={
+                                isEditing
+                                    ? 'check'
+                                    : 'edit'
                             }
-                        >
-
-                            <UserAvatar
-                                image={
-                                    userData.photoURL
-                                }
-                                size={130}
-                            />
-
-                            {
-                                isEditing && (
-
-                                    <View
-                                        style={
-                                            styles.cameraButton
-                                        }
-                                    >
-
-                                        <MaterialIcons
-                                            name="photo-camera"
-                                            size={18}
-                                            color="#FFFFFF"
-                                        />
-
-                                    </View>
-                                )
-                            }
-
-                        </View>
+                            size={20}
+                            color="#FFF"
+                        />
 
                     </TouchableOpacity>
 
-                    {/* USERNAME */}
+                </View>
 
-                    {
-                        isEditing ? (
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    disabled={!isEditing}
+                    onPress={pickImage}
+                >
 
-                            <AppInput
-                                placeholder="Username"
-                                value={
-                                    userData.username
-                                }
-                                onChangeText={text =>
-                                    handleChange(
-                                        'username',
-                                        text
-                                    )
-                                }
-                            />
+                    <View style={styles.imageWrapper}>
 
-                        ) : (
+                        <UserAvatar
+                            image={userData.photoURL}
+                            size={110}
+                        />
 
-                            <Text
+                        {isEditing && (
+
+                            <View
                                 style={
-                                    styles.name
+                                    styles.cameraButton
                                 }
                             >
-                                {
-                                    userData.username
-                                }
-                            </Text>
-                        )
-                    }
 
-                    {/* EMAIL */}
+                                <MaterialIcons
+                                    name="photo-camera"
+                                    size={16}
+                                    color="#FFF"
+                                />
 
-                    <Text
-                        style={
-                            styles.email
+                            </View>
+                        )}
+
+                    </View>
+
+                </TouchableOpacity>
+
+                {isEditing ? (
+
+                    <AppInput
+                        placeholder="Username"
+                        value={userData.username}
+                        onChangeText={text =>
+                            handleChange(
+                                'username',
+                                text,
+                            )
                         }
-                    >
-                        {
-                            userData.email
-                        }
+                    />
+
+                ) : (
+
+                    <Text style={styles.name}>
+                        {userData.username}
                     </Text>
+                )}
 
-                    {/* BIO */}
+                <Text style={styles.email}>
+                    {userData.email}
+                </Text>
 
-                    {
-                        isEditing ? (
+                {isEditing ? (
 
-                            <AppInput
-                                multiline
-                                placeholder="Write your bio..."
-                                value={
-                                    userData.bio
-                                }
-                                onChangeText={text =>
-                                    handleChange(
-                                        'bio',
-                                        text
-                                    )
-                                }
-                                style={
-                                    styles.bioInput
-                                }
-                            />
+                    <AppInput
+                        multiline
+                        placeholder="Write your bio..."
+                        value={userData.bio}
+                        onChangeText={text =>
+                            handleChange(
+                                'bio',
+                                text,
+                            )
+                        }
+                        style={styles.bioInput}
+                    />
 
-                        ) : (
+                ) : (
 
-                            <Text
-                                style={
-                                    styles.bio
-                                }
-                            >
-                                {
-                                    userData.bio ||
-                                    'Add your bio here...'
-                                }
-                            </Text>
-                        )
-                    }
+                    <Text style={styles.bio}>
+                        {userData.bio ||
+                            'No bio added yet'}
+                    </Text>
+                )}
+
+                <View
+                    style={styles.logoutContainer}
+                >
+
+                    <AppButton
+                        title="Logout"
+                        onPress={handleLogout}
+                        loading={saving}
+                    />
 
                 </View>
 
             </ScrollView>
-
-            {/* LOGOUT */}
-
-            <View
-                style={
-                    styles.logoutContainer
-                }
-            >
-
-                <AppButton
-                    title="Logout"
-                    onPress={
-                        handleLogout
-                    }
-                    loading={saving}
-                />
-
-            </View>
 
         </AppContainer>
     );
@@ -526,139 +387,78 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
 
-    header: {
+    container: {
         paddingHorizontal: 20,
         paddingTop: 10,
+        paddingBottom: 120,
+        alignItems: 'center',
+    },
 
+    header: {
+        width: '100%',
         alignItems: 'flex-end',
+        marginBottom: 20,
     },
 
     editButton: {
-        width: 48,
-        height: 48,
-
-        borderRadius: 18,
-
-        backgroundColor:
-            COLORS.primary,
-
-        justifyContent:
-            'center',
-
-        alignItems:
-            'center',
-    },
-
-    scrollContent: {
-        flexGrow: 1,
-
-        justifyContent:
-            'center',
-
-        paddingHorizontal: 20,
-
-        paddingTop: 20,
-
-        paddingBottom: 180,
-    },
-
-    profileCard: {
-        backgroundColor:
-            COLORS.white,
-
-        borderRadius: 30,
-
-        paddingHorizontal: 24,
-        paddingVertical: 32,
-
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: COLORS.primary,
+        justifyContent: 'center',
         alignItems: 'center',
-
-        borderWidth: 1,
-
-        borderColor:
-            COLORS.border,
     },
 
     imageWrapper: {
         position: 'relative',
-
-        marginBottom: 20,
+        marginBottom: 16,
     },
 
     cameraButton: {
-        width: 38,
-        height: 38,
-
-        borderRadius: 19,
-
-        backgroundColor:
-            COLORS.primary,
-
-        justifyContent:
-            'center',
-
-        alignItems:
-            'center',
-
         position: 'absolute',
-
         right: 0,
         bottom: 0,
-
-        borderWidth: 3,
-
-        borderColor:
-            COLORS.white,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: COLORS.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFF',
     },
 
     name: {
-        marginTop: 8,
-
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: '700',
-
-        color:
-            COLORS.textPrimary,
+        color: COLORS.textPrimary,
+        marginTop: 8,
     },
 
     email: {
-        marginTop: 8,
-
-        fontSize: 15,
-
-        color:
-            COLORS.textSecondary,
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        marginTop: 4,
     },
 
     bio: {
-        marginTop: 18,
-
-        fontSize: 15,
-
-        lineHeight: 24,
-
+        marginTop: 16,
         textAlign: 'center',
-
-        color:
-            COLORS.textSecondary,
+        fontSize: 15,
+        lineHeight: 22,
+        color: COLORS.textSecondary,
+        paddingHorizontal: 10,
     },
 
     bioInput: {
-        minHeight: 110,
-
-        marginTop: 18,
-
-        textAlignVertical:
-            'top',
+        width: '100%',
+        minHeight: 100,
+        marginTop: 16,
     },
 
     logoutContainer: {
-        position: 'absolute',
-
-        left: 20,
-        right: 20,
-
-        bottom: 120,
+        width: '100%',
+        marginTop: 300,
     },
 
 });

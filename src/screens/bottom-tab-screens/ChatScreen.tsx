@@ -31,6 +31,10 @@ import {
 } from 'firebase/firestore';
 
 import {
+    uploadImageToCloudinary,
+} from '../../services/cloudinary';
+
+import {
     useNavigation,
 } from '@react-navigation/native';
 
@@ -403,6 +407,16 @@ export default function ChatScreen() {
 
             for (const asset of result.assets) {
 
+                let mediaUrl = asset.uri;
+
+                if (asset.type !== 'video') {
+
+                    mediaUrl =
+                        await uploadImageToCloudinary(
+                            asset.uri
+                        );
+                }
+
                 newMedia.push({
 
                     type:
@@ -410,9 +424,8 @@ export default function ChatScreen() {
                             ? 'video'
                             : 'image',
 
-                    url: asset.uri,
+                    url: mediaUrl,
 
-                    // VIDEO 30 SEC
                     duration:
                         asset.type === 'video'
                             ? 30
