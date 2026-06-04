@@ -15,6 +15,7 @@ import {
     Alert,
     Image,
     ActivityIndicator,
+    AppState,
 } from 'react-native';
 
 import {
@@ -36,6 +37,8 @@ import {
     doc,
     setDoc,
     getDoc,
+    getDocs,
+    updateDoc,
 } from 'firebase/firestore';
 
 import * as ImagePicker from 'expo-image-picker';
@@ -71,6 +74,8 @@ type MessageItem = {
     senderId: string;
     receiverId?: string;
     createdAt?: any;
+    status?: string;
+    seen?: boolean;
 };
 
 type RouteParams = {
@@ -78,6 +83,12 @@ type RouteParams = {
 };
 
 export default function MessageScreen() {
+
+    const [isonline, setIsonline] =
+        useState(false);
+
+    const [lastSeen, setLastSeen] =
+        useState<any>(null);
 
     const navigation =
         useNavigation<any>();
@@ -120,9 +131,43 @@ export default function MessageScreen() {
     const [selectedImage, setSelectedImage] =
         useState<string | null>(null);
 
+    useEffect(() => {
+
+        const unsubscribe =
+            onSnapshot(
+                doc(db, 'users', receiverId),
+                snapshot => {
+
+                    if (snapshot.exists()) {
+
+                        const data =
+                            snapshot.data();
+
+                        setIsonline(
+                            data?.online || false
+                        );
+
+                        setLastSeen(
+                            data?.lastSeen
+                        );
+                    }
+                }
+            );
+
+        return () => unsubscribe();
+
+    }, [receiverId]);
+
+
     // ==========================
     // GET USER DATA
     // ==========================
+
+    useEffect(() => {
+        if (messages.length > 0) {
+            markMessagesSeen();
+        }
+    }, [messages.length]);
 
     useEffect(() => {
 
@@ -228,6 +273,43 @@ export default function MessageScreen() {
 
     }, []);
 
+    useEffect(() => {
+
+        const updateStatus = async (
+            online: boolean
+        ) => {
+
+            await updateDoc(
+                doc(db, 'users', currentUserId),
+                {
+                    online: online,
+                    lastSeen: serverTimestamp(),
+                }
+            );
+        };
+
+        updateStatus(true);
+
+        const subscription =
+            AppState.addEventListener(
+                'change',
+                state => {
+
+                    if (state === 'active') {
+                        updateStatus(true);
+                    } else {
+                        updateStatus(false);
+                    }
+                }
+            );
+
+        return () => {
+            updateStatus(false);
+            subscription.remove();
+        };
+
+    }, []);
+
     // ==========================
     // CLOUDINARY
     // ==========================
@@ -284,7 +366,7 @@ export default function MessageScreen() {
                 throw new Error(
                     data?.error
                         ?.message ||
-                        'Upload failed'
+                    'Upload failed'
                 );
 
             } catch (error) {
@@ -346,16 +428,13 @@ export default function MessageScreen() {
                         'messages'
                     ),
                     {
-                        text:
-                            newMessage,
-
-                        senderId:
-                            currentUserId,
-
+                        text: newMessage,
+                        senderId: currentUserId,
                         receiverId,
+                        createdAt: serverTimestamp(),
 
-                        createdAt:
-                            serverTimestamp(),
+                        status: 'sent',
+                        seen: false,
                     }
                 );
 
@@ -523,6 +602,37 @@ export default function MessageScreen() {
             }
         };
 
+
+    const markMessagesSeen = async () => {
+
+        const snapshot = await getDocs(
+            collection(
+                db,
+                'chats',
+                chatId,
+                'messages'
+            )
+        );
+
+        snapshot.forEach(async msg => {
+
+            const data = msg.data();
+
+            if (
+                data.receiverId === currentUserId &&
+                !data.seen
+            ) {
+                await updateDoc(
+                    msg.ref,
+                    {
+                        seen: true,
+                        status: 'seen',
+                    }
+                );
+            }
+        });
+    };
+
     // ==========================
     // RENDER MESSAGE
     // ==========================
@@ -552,12 +662,34 @@ export default function MessageScreen() {
                 {
                     !isMe && (
 
-                        <UserAvatar
-                            image={
-                                userImage
+                        <View>
+
+                            <UserAvatar
+                                image={userImage}
+                                size={50}
+                            />
+
+                            {
+                                isonline && (
+
+                                    <View
+                                        style={{
+                                            width: 12,
+                                            height: 12,
+                                            borderRadius: 6,
+                                            backgroundColor: '#22C55E',
+                                            position: 'absolute',
+                                            right: 2,
+                                            bottom: 2,
+                                            borderWidth: 2,
+                                            borderColor: '#FFF',
+                                        }}
+                                    />
+
+                                )
                             }
-                            size={40}
-                        />
+
+                        </View>
 
                     )
                 }
@@ -576,11 +708,13 @@ export default function MessageScreen() {
                                     styles.userName
                                 }
                             >
-                                {userName}
+                                {/* {userName} */}
                             </Text>
 
                         )
                     }
+
+
 
                     <View
                         style={[
@@ -631,12 +765,96 @@ export default function MessageScreen() {
                             )
                         }
 
+
                     </View>
 
+                    {isMe && (
+
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                justifyContent: 'flex-end',
+                                marginTop: 4,
+                            }}
+                        >
+
+                            {item.status === 'seen' ? (
+
+                                <Ionicons
+                                    name="checkmark-done"
+                                    size={16}
+                                    color="#22C55E"
+                                />
+
+                            ) : (
+
+                                <Ionicons
+                                    name="checkmark"
+                                    size={16}
+                                    color="#FFFFFF"
+                                />
+
+                            )}
+
+                        </View>
+
+                    )}
                 </View>
 
             </View>
         );
+    };
+
+    const formatLastSeen = (
+        timestamp: any
+    ) => {
+
+        if (!timestamp) {
+            return '';
+        }
+
+        const date =
+            timestamp?.toDate
+                ? timestamp.toDate()
+                : new Date(timestamp);
+
+        const now =
+            new Date();
+
+        const diff =
+            now.getTime() -
+            date.getTime();
+
+        const mins =
+            Math.floor(diff / 60000);
+
+        if (mins < 1) {
+            return 'Just now';
+        }
+
+        if (mins < 60) {
+            return `${mins}m ago`;
+        }
+
+        const hours =
+            Math.floor(mins / 60);
+
+        if (hours < 24) {
+            return `${hours}h ago`;
+        }
+
+        const days =
+            Math.floor(hours / 24);
+
+        if (days === 1) {
+            return 'Yesterday';
+        }
+
+        if (days < 7) {
+            return `${days} days ago`;
+        }
+
+        return `${Math.floor(days / 7)} week ago`;
     };
 
     // ==========================
@@ -648,15 +866,13 @@ export default function MessageScreen() {
         <AppContainer>
 
             <KeyboardAvoidingView
-                style={
-                    styles.flex
-                }
+                style={styles.flex}
                 behavior={
-                    Platform.OS ===
-                    'ios'
+                    Platform.OS === 'ios'
                         ? 'padding'
-                        : undefined
+                        : 'height'
                 }
+                keyboardVerticalOffset={80}
             >
 
                 {/* HEADER */}
@@ -700,12 +916,12 @@ export default function MessageScreen() {
                                 {userName}
                             </Text>
 
-                            <Text
-                                style={
-                                    styles.activeText
+                            <Text style={styles.activeText}>
+                                {
+                                    isonline
+                                        ? 'online'
+                                        : formatLastSeen(lastSeen)
                                 }
-                            >
-                                Online
                             </Text>
 
                         </View>
@@ -1123,3 +1339,5 @@ const styles = StyleSheet.create({
     },
 
 });
+
+
