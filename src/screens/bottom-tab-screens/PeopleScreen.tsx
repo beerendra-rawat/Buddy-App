@@ -172,22 +172,22 @@ export default function PeopleScreen() {
 
                                         const isCurrentUserRequest =
                                             request.senderId ===
-                                                currentUserId &&
+                                            currentUserId &&
                                             request.receiverId ===
-                                                user.id;
+                                            user.id;
 
                                         const isFriend =
                                             (
                                                 request.senderId ===
-                                                    currentUserId &&
+                                                currentUserId &&
                                                 request.receiverId ===
-                                                    user.id
+                                                user.id
                                             ) ||
                                             (
                                                 request.senderId ===
-                                                    user.id &&
+                                                user.id &&
                                                 request.receiverId ===
-                                                    currentUserId
+                                                currentUserId
                                             );
 
                                         // PENDING
@@ -195,7 +195,7 @@ export default function PeopleScreen() {
                                         if (
                                             isCurrentUserRequest &&
                                             request.status ===
-                                                'pending'
+                                            'pending'
                                         ) {
 
                                             status =
@@ -210,7 +210,7 @@ export default function PeopleScreen() {
                                         if (
                                             isFriend &&
                                             request.status ===
-                                                'accepted'
+                                            'accepted'
                                         ) {
 
                                             status =
@@ -561,16 +561,8 @@ export default function PeopleScreen() {
                     <View>
 
                         <UserAvatar
-                            image={
-                                item.image
-                            }
+                            image={item.image}
                             size={56}
-                        />
-
-                        <View
-                            style={
-                                styles.onlineDot
-                            }
                         />
 
                     </View>

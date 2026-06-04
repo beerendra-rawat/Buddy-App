@@ -169,6 +169,7 @@ export default function MessageScreen() {
         }
     }, [messages.length]);
 
+    
     useEffect(() => {
 
         if (!receiverId) {
@@ -271,7 +272,7 @@ export default function MessageScreen() {
 
         return unsubscribe;
 
-    }, []);
+    }, [chatId]);
 
     useEffect(() => {
 
@@ -279,10 +280,12 @@ export default function MessageScreen() {
             online: boolean
         ) => {
 
+            if (!currentUserId) return;
+
             await updateDoc(
                 doc(db, 'users', currentUserId),
                 {
-                    online: online,
+                    online,
                     lastSeen: serverTimestamp(),
                 }
             );
@@ -432,7 +435,6 @@ export default function MessageScreen() {
                         senderId: currentUserId,
                         receiverId,
                         createdAt: serverTimestamp(),
-
                         status: 'sent',
                         seen: false,
                     }
@@ -566,8 +568,7 @@ export default function MessageScreen() {
                         'messages'
                     ),
                     {
-                        image:
-                            imageUrl,
+                        image: imageUrl,
 
                         senderId:
                             currentUserId,
@@ -576,6 +577,9 @@ export default function MessageScreen() {
 
                         createdAt:
                             serverTimestamp(),
+
+                        status: 'sent',
+                        seen: false,
                     }
                 );
 
@@ -700,21 +704,6 @@ export default function MessageScreen() {
                     }
                 >
 
-                    {
-                        !isMe && (
-
-                            <Text
-                                style={
-                                    styles.userName
-                                }
-                            >
-                                {/* {userName} */}
-                            </Text>
-
-                        )
-                    }
-
-
 
                     <View
                         style={[
@@ -760,6 +749,7 @@ export default function MessageScreen() {
                                     style={
                                         styles.chatImage
                                     }
+                                    resizeMode="cover"
                                 />
 
                             )

@@ -299,20 +299,17 @@ export default function ProfileScreen() {
                             size={110}
                         />
 
+                        <View
+                            style={styles.onlineDot}
+                        />
+
                         {isEditing && (
-
-                            <View
-                                style={
-                                    styles.cameraButton
-                                }
-                            >
-
+                            <View style={styles.cameraButton}>
                                 <MaterialIcons
                                     name="photo-camera"
                                     size={16}
                                     color="#FFF"
                                 />
-
                             </View>
                         )}
 
@@ -459,6 +456,23 @@ const styles = StyleSheet.create({
     logoutContainer: {
         width: '100%',
         marginTop: 300,
+    },
+
+    onlineDot: {
+        width: 20,
+        height: 20,
+
+        borderRadius: 10,
+
+        backgroundColor: '#22C55E',
+
+        position: 'absolute',
+
+        right: 8,
+        bottom: 8,
+
+        borderWidth: 3,
+        borderColor: '#FFF',
     },
 
 });

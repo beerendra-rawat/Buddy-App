@@ -71,6 +71,7 @@ type Friend = {
     id: string;
     name: string;
     image: string;
+    online?: boolean;
 };
 
 export default function FriendScreen() {
@@ -327,7 +328,6 @@ export default function FriendScreen() {
 
                             friendList.push({
                                 id: friendId,
-
                                 name:
                                     userData?.name ||
                                     userData?.username ||
@@ -338,6 +338,9 @@ export default function FriendScreen() {
                                     userData?.image ||
                                     userData?.profileImage ||
                                     '',
+
+                                online:
+                                    userData?.online || false,
                             });
                         }
 
@@ -465,10 +468,20 @@ export default function FriendScreen() {
             }
         >
 
-            <UserAvatar
-                image={item.image}
-                size={56}
-            />
+            <View>
+
+                <UserAvatar
+                    image={item.image}
+                    size={56}
+                />
+
+                {item.online && (
+                    <View
+                        style={styles.onlineDot}
+                    />
+                )}
+
+            </View>
 
             <View
                 style={
@@ -664,7 +677,7 @@ export default function FriendScreen() {
                     <>
                         {
                             friendRequests.length >
-                                0 && (
+                            0 && (
                                 <>
                                     <Text
                                         style={
@@ -836,6 +849,23 @@ const styles = StyleSheet.create({
 
         color:
             COLORS.textPrimary,
+    },
+
+    onlineDot: {
+        width: 13,
+        height: 13,
+
+        borderRadius: 7,
+
+        backgroundColor: '#22C55E',
+
+        position: 'absolute',
+
+        bottom: 1,
+        right: 1,
+
+        borderWidth: 2,
+        borderColor: COLORS.white,
     },
 
 });
