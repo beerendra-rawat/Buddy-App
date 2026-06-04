@@ -20,6 +20,7 @@ import formatTime from '../../utils/formatTime';
 import {
     COLORS,
 } from '../../constants/colors';
+import formatChatTime from '../../utils/formatTime';
 
 type Props = {
     item: {
@@ -32,6 +33,7 @@ type Props = {
         online?: boolean;
     };
 };
+
 
 export default function ChatItem({
     item,
@@ -103,13 +105,7 @@ export default function ChatItem({
                     {/* DATE + TIME */}
 
                     <Text style={styles.time}>
-
-                        {
-                            formatTime(
-                                item.lastMessageTime
-                            )
-                        }
-
+                        {formatChatTime(item.lastMessageTime)}
                     </Text>
 
                 </View>
